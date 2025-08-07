@@ -1,0 +1,25 @@
+name: "GCSS configuration repository setup"
+description: "Action that does the setup of GCSS 'configuration' repository for GCSS 'code' repository"
+inputs:
+  checkout-sha:
+    description: "sha to checkout"
+    required: true
+  checkout-token:
+    description: "token to checkout the config with"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout configuration repo
+      uses: actions/checkout@v4
+      with:
+        path: feature/github-repo-provisioning/gcss_config
+        ref: ${{ inputs.checkout-sha }}
+        token: ${{ inputs.checkout-token }}
+
+    - name: Copy importer config
+      shell: bash
+      run: |
+        cp feature/github-repo-provisioning/gcss_config/config/app-list.yaml feature/github-repo-importer/app-list.yaml
+        cp feature/github-repo-provisioning/gcss_config/config/app-list.yaml feature/github-repo-provisioning/app-list.yaml
+        cp feature/github-repo-provisioning/gcss_config/config/import-config.yaml feature/github-repo-importer/import-config.yaml

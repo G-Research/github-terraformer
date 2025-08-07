@@ -1,0 +1,76 @@
+name: Bulk import repos pipeline
+
+on:
+  workflow_call:
+    inputs:
+      gcss_ref:
+        type: string
+        description: "GCSS ref to checkout"
+        required: false
+        default: "main"
+    secrets:
+      app_private_key:
+        required: true
+
+jobs:
+  bulk-import-repos:
+    runs-on: ubuntu-latest
+    name: Bulk import repos
+    environment: import
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Generate a token
+        uses: actions/create-github-app-token@v1
+        id: generate-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout GCSS
+        uses: actions/checkout@v4
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: GCSS config setup
+        uses: ./.github/actions/gcss-config-setup
+        with:
+          checkout-sha: ${{ github.sha }}
+          checkout-token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Setup Just
+        uses: extractions/setup-just@v2
+        with:
+          just-version: '1.4.0'
+
+      - name: Setup vars
+        id: setup-vars
+        run: |
+          date_suffix=$(date +%Y%m%d)
+          echo "automation_branch_name=import/${{ github.ref_name }}/${{ github.repository_owner }}/bulk-import/$date_suffix" >> $GITHUB_OUTPUT
+
+      - name: Bulk import repos
+        working-directory: feature/github-repo-importer
+        run: just import-repos
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Handle configuration files
+        uses: ./.github/actions/compare
+        with:
+          working-directory: feature/github-repo-importer
+          source-directory: "../github-repo-provisioning/gcss_config/importer_tmp_dir/"
+          target-directory: "../github-repo-provisioning/gcss_config/"
+
+      - name: Create Pull Request
+        uses: ./.github/actions/pr-bot
+        with:
+          branch-name: ${{ steps.setup-vars.outputs.automation_branch_name }}
+          pr-title: "Bulk import repos"
+          commit-message: "Auto-generated changes. Bulk import repos"
+          github-token: ${{ steps.generate-token.outputs.token }}

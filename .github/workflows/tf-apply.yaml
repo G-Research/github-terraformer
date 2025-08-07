@@ -1,0 +1,56 @@
+name: Terraform Plan
+
+on:
+  workflow_call:
+    inputs:
+      commit_sha:
+        type: string
+        description: 'The commit SHA to promote'
+        required: true
+      gcss_ref:
+        type: string
+        description: "GCSS ref to checkout"
+        required: false
+        default: "main"
+    secrets:
+      gh_token:
+        required: true
+      tfc_token:
+        required: true
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    environment: promote
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout GCSS
+        uses: actions/checkout@v4
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: GCSS config setup
+        uses: ./.github/actions/gcss-config-setup
+        with:
+          checkout-sha: ${{ inputs.commit_sha }}
+          checkout-token: ${{ secrets.gh_token }}
+
+      - name: Setup terraform and run plan
+        uses: ./.github/actions/graformer
+        id: graformer
+        with:
+          tfc-token: ${{ secrets.tfc_token }}
+          tfc-organization: "GR-OSS"
+          tfc-workspace: ${{ vars.WORKSPACE }}
+
+      - name: Run Terraform apply
+        if: steps.graformer.outputs.plan-exitcode == '2'
+        working-directory: feature/github-repo-provisioning
+        env:
+          TF_CLOUD_ORGANIZATION: "GR-OSS"
+          TF_WORKSPACE: ${{ vars.WORKSPACE }}
+        run: terraform apply -no-color -input=false -auto-approve

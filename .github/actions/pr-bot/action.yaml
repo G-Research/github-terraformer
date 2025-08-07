@@ -1,0 +1,38 @@
+name: "Bot action to create automated PRs"
+description: "Bot action to create automated PRs"
+inputs:
+  branch-name:
+    description: "Branch name, PR source branch"
+    required: true
+  pr-title:
+    description: "Title of the PR"
+    required: true
+  commit-message:
+    description: "Commit message for the PR"
+    required: true
+  github-token:
+    description: "GitHub token for authentication"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Configure git
+      shell: bash
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+    - name: Push changes
+      shell: bash
+      run: |
+        cd feature/github-repo-provisioning/gcss_config
+        git checkout -b ${{ inputs.branch-name }}
+        git add .
+        git commit -m "${{ inputs.commit-message }}"
+        git push origin ${{ inputs.branch-name }}
+
+    - name: Create Pull Request
+      shell: bash
+      run: gh pr create --title "${{ inputs.pr-title }}" --body "This is an automated PR." --base ${{ github.ref_name }} --head ${{ inputs.branch-name }} --repo ${{ github.repository }}
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}

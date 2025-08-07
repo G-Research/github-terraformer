@@ -1,0 +1,35 @@
+name: "Action: Compare"
+description: "Compare two directories and remove identical files"
+inputs:
+  working-directory:
+    description: "Working directory for the action"
+    required: true
+  source-directory:
+    description: "Source directory to compare"
+    required: true
+  target-directory:
+    description: "Target directory to compare"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Compare directories and remove identical files
+      shell: bash
+      working-directory: feature/github-repo-importer
+      env:
+        SOURCE_DIRECTORY: ${{ inputs.source-directory }}
+        TARGET_DIRECTORY: ${{ inputs.target-directory }}
+      run: |
+        dirA="${SOURCE_DIRECTORY}"
+        dirB="${TARGET_DIRECTORY}"
+        result=$(just compare "$dirA" "$dirB")
+        if [[ -z "$files_to_delete" ]]; then
+          echo "No files to delete."
+        else
+          read -p "Waiting review #1..."
+          echo "Files to delete: [$files_to_delete]"
+          while IFS= read -r relpath; do
+            rm $dirA/$relpath
+            echo "Removed: $relpath"
+          done <<< "$files_to_delete"
+        fi

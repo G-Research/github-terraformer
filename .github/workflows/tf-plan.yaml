@@ -1,0 +1,95 @@
+name: Terraform Plan
+
+on:
+  workflow_call:
+    inputs:
+      commit_sha:
+        type: string
+        description: 'The commit SHA to promote'
+        required: true
+      gcss_ref:
+        type: string
+        description: "GCSS ref to checkout"
+        required: false
+        default: "main"
+    secrets:
+      app_private_key:
+        required: true
+      gh_token:
+        required: true
+      tfc_token:
+        required: true
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    environment: promote
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Generate a token
+        uses: actions/create-github-app-token@v2
+        id: generate-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout GCSS
+        uses: actions/checkout@v4
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: GCSS config setup
+        uses: ./.github/actions/gcss-config-setup
+        with:
+          checkout-sha: ${{ inputs.commit_sha }}
+          checkout-token: ${{ secrets.gh_token }}
+
+      - name: Setup terraform and run plan
+        uses: ./.github/actions/graformer
+        id: graformer
+        with:
+          tfc-token: ${{ secrets.tfc_token }}
+          tfc-organization: "GR-OSS"
+          tfc-workspace: ${{ vars.WORKSPACE }}
+
+      - uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.graformer.outputs.plan-stdout }}"
+        with:
+          github-token: ${{ secrets.gh_token }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.graformer.outputs.fmt-outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.graformer.outputs.init-outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.graformer.outputs.validate-outcome }}\`
+            <details><summary>Validation Output</summary>
+
+            \`\`\`\n
+            ${{ steps.graformer.outputs.validate-stdout }}
+            \`\`\`
+
+            </details>
+
+            #### Terraform Plan 📖\`${{ steps.graformer.outputs.plan-outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })

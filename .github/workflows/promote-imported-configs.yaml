@@ -1,0 +1,105 @@
+name: Promote Imported Configs
+
+on:
+  workflow_call:
+    inputs:
+      commit_sha:
+        type: string
+        description: 'The commit SHA to promote'
+        required: true
+      gcss_ref:
+        type: string
+        description: "GCSS ref to checkout"
+        required: false
+        default: "main"
+      pr_number:
+        type: string
+        description: 'The pull request number to promote'
+        required: true
+    secrets:
+      app_private_key:
+        required: true
+      gh_token:
+        required: true
+      tfc_token:
+        required: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: promote
+    permissions:
+      contents: write
+    steps:
+      - name: Generate a token
+        uses: actions/create-github-app-token@v2
+        id: generate-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout GCSS
+        uses: actions/checkout@v4
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: GCSS config setup
+        uses: ./.github/actions/gcss-config-setup
+        with:
+          checkout-sha: ${{ inputs.commit_sha }}
+          checkout-token: ${{ secrets.gh_token }}
+
+      - name: Setup terraform and run plan
+        id: graformer
+        uses: ./.github/actions/graformer
+        with:
+          tfc-token: ${{ secrets.tfc_token }}
+          tfc-organization: "GR-OSS"
+          tfc-workspace: ${{ vars.WORKSPACE }}
+
+      - name: Run Terraform apply
+        if: steps.graformer.outputs.plan-exitcode == '2'
+        working-directory: feature/github-repo-provisioning
+        env:
+          TF_CLOUD_ORGANIZATION: "GR-OSS"
+          TF_WORKSPACE: ${{ vars.WORKSPACE }}
+        run: terraform apply -no-color -input=false -auto-approve
+
+
+      - name: Configure git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Checkout target branch
+        working-directory: feature/github-repo-provisioning/gcss_config
+        run: git checkout -B "${{ github.ref_name }}"
+
+      - name: Promote Sanitized Files
+        working-directory: feature/github-repo-provisioning/gcss_config
+        run: |
+          src="importer_tmp_dir"
+          dst="."
+        
+          if [[ -d "$src" ]]; then
+            echo "Promoting configs from $src to $dst"
+            mkdir -p "$dst"
+        
+            find "$src" -type f -name '*.yaml' | while read file; do
+              yq '. |= ( with(select(.rulesets[] != null); .rulesets[] |= del(.id)) | with(select(.rulesets[] == null); .) )' -i $file
+            done
+
+            find "$src" -maxdepth 1 -type f \( -name "*.yaml" -o -name ".*.yaml" \) -print -exec mv {} "$dst" \;
+            git add "$src" "$dst"
+          else
+            echo "Source dir $src not found, skipping"
+          fi
+          
+          git diff --cached --quiet || {
+            date_suffix=$(date +%Y-%m-%d)
+            git commit -m "Promote configs from PR #${{ inputs.pr_number }} on $date_suffix"
+            git push origin "${{ github.ref_name }}"
+          }

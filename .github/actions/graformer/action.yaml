@@ -1,0 +1,70 @@
+name: "Bot action to create automated PRs"
+description: "Bot action to create automated PRs"
+inputs:
+  tfc-token:
+    description: "HCP token for authentication"
+    required: true
+  tfc-organization:
+    description: "HCP cloud organization"
+    required: true
+  tfc-workspace:
+    description: "HCP cloud workspace name"
+    required: true
+outputs:
+  plan-exitcode:
+    description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
+    value: ${{ steps.plan.outputs.exitcode }}
+  plan-stdout:
+    description: "plan stdout"
+    value: ${{ steps.plan.outputs.stdout }}
+  fmt-outcome:
+    description: "formatting outcome"
+    value: ${{ steps.fmt.outcome }}
+  init-outcome:
+    description: "init outcome"
+    value: ${{ steps.init.outcome }}
+  validate-outcome:
+    description: "validation outcome"
+    value: ${{ steps.validate.outcome }}
+  plan-outcome:
+    description: "Plan outcome"
+    value: ${{ steps.plan.outcome }}
+  validate-stdout:
+    description: "validate stdout"
+    value: ${{ steps.validate.outputs.stdout }}
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        cli_config_credentials_token: ${{ inputs.tfc-token }}
+
+    - name: Terraform fmt
+      id: fmt
+      shell: bash
+      run: terraform fmt -check
+      continue-on-error: true
+
+    - name: Run Terraform init
+      working-directory: feature/github-repo-provisioning
+      id: init
+      shell: bash
+      run: terraform init -input=false
+      env:
+        TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
+        TF_WORKSPACE: ${{ inputs.tfc-workspace }}
+
+    - name: Terraform Validate
+      id: validate
+      shell: bash
+      run: terraform validate -no-color
+
+    - name: Run Terraform plan
+      id: plan
+      shell: bash
+      working-directory: feature/github-repo-provisioning
+      env:
+        TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
+        TF_WORKSPACE: ${{ inputs.tfc-workspace }}
+      run: terraform plan -no-color -input=false -detailed-exitcode

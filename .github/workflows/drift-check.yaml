@@ -1,0 +1,47 @@
+name: "Terraform Cloud Drift Check"
+
+on:
+  workflow_call:
+    inputs:
+      gcss_ref:
+        type: string
+        description: "GCSS ref to checkout"
+        required: false
+        default: "main"
+
+jobs:
+  drift-check:
+    name: "Drift Check"
+    runs-on: ubuntu-latest
+    environment: schedule
+    steps:
+      - name: Checkout GCSS
+        uses: actions/checkout@v4
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: GCSS config setup
+        uses: ./.github/actions/gcss-config-setup
+        with:
+          checkout-sha: ${{ github.sha }}
+          checkout-token: ${{ github.token }}
+
+      - name: Setup terraform and run plan
+        id: graformer
+        uses: ./.github/actions/graformer
+        with:
+          tfc-token: ${{ secrets.TFC_TOKEN }}
+          tfc-organization: "GR-OSS"
+          tfc-workspace: ${{ vars.WORKSPACE }}
+
+        # 0 for green plan no changes, 2 for green plan with changes
+      - name: Inspect drift
+        run: |
+          if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == 2 ]]; then
+            echo "Drift detected!"
+            exit 1
+          else
+            echo "No drift detected."
+          fi

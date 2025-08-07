@@ -1,0 +1,100 @@
+name: "Detect Terraform Cloud Drift"
+description: "Composite action to detect drift in a Terraform Cloud workspace by running a plan."
+inputs:
+  tfc-token:
+    description: "Terraform Cloud API token (user token with run permissions)"
+    required: true
+  workspace-id:
+    description: "Terraform Cloud workspace ID"
+    required: true
+  polling-interval:
+    description: "Interval in seconds between status polls"
+    required: false
+    default: "10"
+outputs:
+  drift:
+    description: "Whether drift (changes) were detected (true/false)"
+    value: ${{ steps.run-status.outputs.drift }}
+  run-id:
+    description: "The Terraform Cloud run ID"
+    value: ${{ steps.create-run.outputs.run-id }}
+  run-url:
+    description: "URL of the Terraform Cloud run"
+    value: ${{ steps.create-run.outputs.run-url }}
+runs:
+  using: "composite"
+  steps:
+    - name: Trigger plan-only run
+      id: create-run
+      shell: bash
+      env:
+        TFC_TOKEN: ${{ inputs.tfc-token }}
+        WORKSPACE_ID: ${{ inputs.workspace-id }}
+      run: |
+        echo "Starting plan-only run in workspace $WORKSPACE_ID"
+        payload=$(cat <<EOF
+            {"data":{"attributes":{"message":"Drift detection plan","plan-only":true,"allow-empty-apply": false},"type":"runs","relationships":{"workspace":{"data":{"type":"workspaces","id":"${WORKSPACE_ID}"}}}}}
+        EOF
+        )
+        response=$(curl -sS -X POST https://app.terraform.io/api/v2/runs \
+          -H "Authorization: Bearer $TFC_TOKEN" \
+          -H "Content-Type: application/vnd.api+json" \
+          -d "$payload")
+        run_id=$(echo "$response" | jq -r .data.id)
+        if [ -z "$run_id" ]; then
+          echo "Error: failed to create run. Response: $response"
+          exit 1
+        fi
+        # Get workspace info to build run URL
+        ws_info=$(curl -sS -H "Authorization: Bearer $TFC_TOKEN" https://app.terraform.io/api/v2/workspaces/${WORKSPACE_ID})
+        org=$(echo "$ws_info" | jq -r .data.relationships.organization.data.id)
+        workspace_name=$(echo "$ws_info" | jq -r .data.attributes.name)
+        run_url="https://app.terraform.io/app/${org}/${workspace_name}/runs/${run_id}"
+        echo "Created run $run_id. URL: $run_url"
+        echo "run-id=$run_id" >> $GITHUB_OUTPUT
+        echo "run-url=$run_url" >> $GITHUB_OUTPUT
+
+    - name: Poll run status
+      id: run-status
+      shell: bash
+      env:
+        TFC_TOKEN: ${{ inputs.tfc-token }}
+        POLL_INTERVAL: ${{ inputs.polling-interval }}
+        run_id: ${{ steps.create-run.outputs.run-id }}
+      run: |
+        attempts=0
+        status=""
+        echo "Polling run status for $run_id"
+        while :; do
+          sleep $POLL_INTERVAL
+          response=$(curl -sS -H "Authorization: Bearer $TFC_TOKEN" https://app.terraform.io/api/v2/runs/${run_id})
+          status=$(echo "$response" | jq -r '.data.attributes.status')
+          echo "Attempt $((attempts+1)): status=$status"
+        
+          if [[ "$status" == "planned_and_finished" ]] || [[ "$status" == "cost_estimated" ]] || [[ "$status" == "policy_checked" ]] || [[ "$status" == "policy_override" ]] || [[ "$status" == "policy_soft_failed" ]] || [[ "$status" == "errored" ]] || [[ "$status" == "discarded" ]] || [[ "$status" == "canceled" ]] || [[ "$status" == "force_canceled" ]]; then
+            break
+          fi
+        
+          attempts=$((attempts + 1))
+        done
+        
+        final_resp=$(curl -sS -H "Authorization: Bearer $TFC_TOKEN" https://app.terraform.io/api/v2/runs/${run_id})
+        status=$(echo "$final_resp" | jq -r '.data.attributes.status')
+        
+        if [ -z "$final_resp" ]; then
+          echo "Error: failed to retrieve run status."
+          exit 1
+        fi
+        
+        has_changes=$(echo "$final_resp" | jq -r '.data.attributes.["has-changes"]')
+        
+        if [[ "$status" == "errored" ]]; then
+          echo "Error: Terraform run errored."
+          exit 1
+        fi
+        
+        if [[ "$has_changes" == "true" ]]; then
+          echo "drift=true" >> $GITHUB_OUTPUT
+        else
+          echo "drift=false" >> $GITHUB_OUTPUT
+        fi

@@ -1,0 +1,84 @@
+name: Import repo pipeline
+
+on:
+  workflow_call:
+    inputs:
+      repo_name:
+        type: string
+        description: 'The name of the repository to import'
+        required: true
+      gcss_ref:
+        type: string
+        description: "GCSS ref to checkout"
+        required: false
+        default: "main"
+    secrets:
+      app_private_key:
+          required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  import-repo:
+    runs-on: ubuntu-latest
+    name: Import repository
+    environment: import
+    steps:
+      - name: Generate a token
+        uses: actions/create-github-app-token@v1
+        id: generate-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Just echo
+        run: echo "just echo"
+
+      - name: Checkout GCSS
+        uses: actions/checkout@v4
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: GCSS config setup
+        uses: ./.github/actions/gcss-config-setup
+        with:
+          checkout-sha: ${{ github.sha }}
+          checkout-token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Setup Just
+        uses: extractions/setup-just@v2
+        with:
+          just-version: '1.4.0'
+
+      - name: Setup vars
+        id: setup-vars
+        run: |
+          date_suffix=$(date +%Y%m%d)
+          echo "full_repo_name=${{ github.repository_owner }}/${{ inputs.repo_name }}" >> $GITHUB_OUTPUT
+          echo "automation_branch_name=import/${{ github.repository_owner }}/${{ inputs.repo_name }}/$date_suffix" >> $GITHUB_OUTPUT    
+
+      - name: Import repo
+        working-directory: feature/github-repo-importer
+        run: just import-repo ${{ steps.setup-vars.outputs.full_repo_name }}
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+      - name: Handle configuration files
+        uses: ./.github/actions/compare
+        with:
+          working-directory: feature/github-repo-importer
+          source-directory: "../github-repo-provisioning/gcss_config/importer_tmp_dir/"
+          target-directory: "../github-repo-provisioning/gcss_config/"
+
+      - name: Create Pull Request
+        uses: ./.github/actions/pr-bot
+        with:
+          branch-name: ${{ steps.setup-vars.outputs.automation_branch_name }}
+          pr-title: "Import ${{ steps.setup-vars.outputs.full_repo_name }}"
+          commit-message: "Auto-generated changes. Import ${{ steps.setup-vars.outputs.full_repo_name }} repository"
+          github-token: ${{ steps.generate-token.outputs.token }}
