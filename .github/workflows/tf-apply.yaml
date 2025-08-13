@@ -27,7 +27,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout GCSS
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: G-Research/github-terraformer
           ref: ${{ inputs.gcss_ref }}
