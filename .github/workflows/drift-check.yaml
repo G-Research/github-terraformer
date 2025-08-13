@@ -8,6 +8,10 @@ on:
         description: "GCSS ref to checkout"
         required: false
         default: "main"
+    secrets:
+      tfc_token:
+        description: "Terraform Cloud API token"
+        required: true
 
 jobs:
   drift-check:
@@ -32,7 +36,7 @@ jobs:
         id: graformer
         uses: ./.github/actions/graformer
         with:
-          tfc-token: ${{ secrets.TFC_TOKEN }}
+          tfc-token: ${{ secrets.tfc_token }}
           tfc-organization: "GR-OSS"
           tfc-workspace: ${{ vars.WORKSPACE }}
 
