@@ -19,8 +19,6 @@ on:
     secrets:
       app_private_key:
         required: true
-      gh_token:
-        required: true
       tfc_token:
         required: true
 
@@ -50,7 +48,7 @@ jobs:
         uses: ./.github/actions/gcss-config-setup
         with:
           checkout-sha: ${{ inputs.commit_sha }}
-          checkout-token: ${{ secrets.gh_token }}
+          checkout-token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup terraform and run plan
         id: graformer
