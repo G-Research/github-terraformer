@@ -1,0 +1,41 @@
+name: Post comment on PR
+
+on:
+  workflow_call:
+    secrets:
+      gh_token:
+        required: true
+
+jobs:
+  comment-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.gh_token }}
+          script: |
+            const body = `👋 Hey there, reviewer!
+
+              A **Terraform Plan** will need to run for this PR but it needs approval before proceeding. This is to avoid leaking secrets, and we need you to look for the following before approving:
+                1. 🔍 **No workflow YAML files** (\`.github/workflows/*.yml\`) have been changed.
+                2. 🗂️ Only **repository configuration files** have been **added or modified** (no unrelated files touched).
+              
+              ✅ If everything looks good, approve the run by:
+                - Looking for the section "This branch is waiting for a deployment approval, promote needs your review" and select "Show environments"
+                - Right below, select "terraform-plan / terraform-plan"
+                - In the new screen, select "Review deployments" that opens a pop-up window
+                - In the new pop-up window check the checkbox "promote", add a comment if you see fit, and select "Approve and deploy"
+            
+              Once deployment is approved, you can go back to the PR and you will see that:
+                - 📦 The **Terraform Plan** will proceed to ingest the repo configuration files.
+                - 🌍 Using the **Terraform GitHub provider**, it will compare the desired state with the current state.
+                - 📊 The plan should show diffs **only for the repository configurations that were added or modified** — nothing else.
+            
+              🚀 If that's the case, we're good to move forward and approve the PR!`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            })
