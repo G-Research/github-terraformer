@@ -21,7 +21,7 @@ on:
 jobs:
   terraform-plan:
     runs-on: ubuntu-latest
-    environment: promote
+    environment: plan
     permissions:
       pull-requests: write
       contents: read
