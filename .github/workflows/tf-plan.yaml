@@ -13,8 +13,6 @@ on:
         required: false
         default: "main"
     secrets:
-      app_private_key:
-        required: true
       gh_token:
         required: true
       tfc_token:
@@ -28,14 +26,6 @@ jobs:
       pull-requests: write
       contents: read
     steps:
-      - name: Generate a token
-        uses: actions/create-github-app-token@v2
-        id: generate-token
-        with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.app_private_key }}
-          owner: ${{ github.repository_owner }}
-
       - name: Checkout GCSS
         uses: actions/checkout@v4
         with:
