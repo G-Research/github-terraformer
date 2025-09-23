@@ -69,5 +69,4 @@ jobs:
             -f name='terraform-plan / terraform-plan' \
             -f head_sha="${{ inputs.commit_sha }}" \
             -f status='completed' \
-            -f conclusion='success' \
-            -f output='{"title":"Lint OK","summary":"Test"}'
+            -f conclusion='success'
