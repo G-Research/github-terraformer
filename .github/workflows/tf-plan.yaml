@@ -25,7 +25,6 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
-      checks: write
     steps:
       - name: Create check
         env:
@@ -63,10 +62,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.gh_token }}
         run: |
-          gh api repos/${{ github.repository }}/check-runs \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -f name='terraform-plan / terraform-plan' \
-            -f head_sha="${{ inputs.commit_sha }}" \
-            -f status='completed' \
-            -f conclusion='success'
+          if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == 1 ]]; then
+            gh api repos/${{ github.repository }}/check-runs \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -f name='terraform-plan / terraform-plan' \
+              -f head_sha="${{ inputs.commit_sha }}" \
+              -f status='completed' \
+              -f conclusion='failure'
+          else
+            gh api repos/${{ github.repository }}/check-runs \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -f name='terraform-plan / terraform-plan' \
+              -f head_sha="${{ inputs.commit_sha }}" \
+              -f status='completed' \
+              -f conclusion='success'
+          fi
