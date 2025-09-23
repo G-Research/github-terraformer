@@ -13,6 +13,8 @@ on:
         required: false
         default: "main"
     secrets:
+      app_private_key:
+        required: true
       gh_token:
         required: true
       tfc_token:
@@ -27,9 +29,17 @@ jobs:
       contents: read
       checks: write
     steps:
+      - name: Generate a token
+        uses: actions/create-github-app-token@v2
+        id: generate-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+
       - name: Create check
         env:
-          GH_TOKEN: ${{ secrets.gh_token }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
           gh api repos/${{ github.repository }}/check-runs \
             -X POST \
@@ -60,8 +70,9 @@ jobs:
           tfc-workspace: ${{ vars.WORKSPACE }}
 
       - name: Create check
+        if: always()
         env:
-          GH_TOKEN: ${{ secrets.gh_token }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
           if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == 1 ]]; then
             gh api repos/${{ github.repository }}/check-runs \

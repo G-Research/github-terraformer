@@ -17,7 +17,7 @@ jobs:
   drift-check:
     name: "Drift Check"
     runs-on: ubuntu-latest
-    environment: plan
+    environment: schedule
     steps:
       - name: Checkout GCSS
         uses: actions/checkout@v4
