@@ -78,9 +78,9 @@ jobs:
         run: |
           conclusion="failure"
           title="Terraform Plan Failed"
-          summary="The Terraform plan did not complete successfully."
-          text="Please check workflow logs for details."
           details_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          summary="The Terraform plan did not complete successfully. Please check workflow logs for details: ${details_url}"
+          text="Terraform did not run successfully."
 
           # Only override if graformer ran and produced an exit code
           if [[ -n "${{ steps.graformer.outcome }}" && "${{ steps.graformer.outcome }}" == "success" ]]; then
@@ -88,19 +88,19 @@ jobs:
               0)
                 conclusion="success"
                 title="Terraform Plan Succeeded (no changes)"
-                summary="Terraform executed successfully with **no changes** required."
+                summary="Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${details_url}"
                 text="Terraform exit code: 0"
                 ;;
               2)
                 conclusion="success"
                 title="Terraform Plan Succeeded (with changes)"
-                summary="Terraform executed successfully and **changes are required**."
+                summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
                 text="Terraform exit code: 2"
                 ;;
               1)
                 conclusion="failure"
                 title="Terraform Plan Failed"
-                summary="Terraform plan failed during execution."
+                summary="Terraform plan failed during execution. Please check workflow logs for details: ${details_url}"
                 text="Terraform exit code: 1"
                 ;;
             esac
