@@ -94,7 +94,8 @@ jobs:
                 conclusion="success"
                 title="Terraform Plan Succeeded (with changes)"
                 summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
-                text="```\n'"${{ steps.graformer.outputs.plan-summary }}"$'\n```"
+                PLAN_SUMMARY="${{ steps.graformer.outputs.plan-summary }}"
+                text=$'```\n'"$PLAN_SUMMARY"$'\n```'
                 ;;
               1)
                 conclusion="failure"
