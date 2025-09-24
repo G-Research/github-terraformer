@@ -51,7 +51,8 @@ runs:
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
         terraform plan -no-color -input=false -detailed-exitcode -out=tfplan
-        terraform show -json tfplan > tfplan.json        
+        terraform show -json tfplan > tfplan.json
+        ls -la tfplan.json
 
     - name: Comment Plan Changes
       uses: liatrio/terraform-change-pr-commenter@v1.10.0
