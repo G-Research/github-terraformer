@@ -66,6 +66,6 @@ runs:
         GH_TOKEN: ${{ inputs.gh-token }}
       run: |
         plan_summary=$(echo "$TF_PLAN_OUTPUT" | grep 'Plan:')
-        gh pr comment $PR_NUMBER --body "### :terraform: Terraform Plan Result\n$plan_summary"
+        gh pr comment $PR_NUMBER --body "### :terraform: Terraform Plan Result\n$plan_summary" --repo $GITHUB_REPOSITORY
 
     
