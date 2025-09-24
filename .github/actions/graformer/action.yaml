@@ -21,6 +21,7 @@ runs:
       uses: hashicorp/setup-terraform@v3
       with:
         cli_config_credentials_token: ${{ inputs.tfc-token }}
+        terraform_wrapper: false
 
     - name: Terraform fmt
       id: fmt
