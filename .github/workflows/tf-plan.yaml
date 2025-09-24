@@ -60,9 +60,6 @@ jobs:
           checkout-sha: ${{ inputs.commit_sha }}
           checkout-token: ${{ secrets.gh_token }}
 
-      - name: Test
-        run: exit 1
-
       - name: Setup terraform and run plan
         uses: ./.github/actions/graformer
         id: graformer
