@@ -65,6 +65,6 @@ runs:
         GITHUB_REPOSITORY: ${{ github.repository }}
         GH_TOKEN: ${{ inputs.gh-token }}
       run: |
-        plan_summary=$(echo "$TF_PLAN_OUTPUT" | grep 'Plan:')
+        plan_summary=$(echo "$TF_PLAN_OUTPUT" | grep 'Plan:' | tail -n 1 | sed -r 's/\x1b\[[0-9;]*m//g')
         comment=$'### Terraform Plan Result\n\n```\n'"$plan_summary"$'\n```'
         gh pr comment "$PR_NUMBER" --body "$comment" --repo "$GITHUB_REPOSITORY"
