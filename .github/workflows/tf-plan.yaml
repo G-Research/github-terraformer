@@ -36,7 +36,7 @@ jobs:
           private-key: ${{ secrets.app_private_key }}
           owner: ${{ github.repository_owner }}
 
-      - name: Create check
+      - name: Create in-progress check-run
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
@@ -68,25 +68,24 @@ jobs:
           tfc-organization: "GR-OSS"
           tfc-workspace: ${{ vars.WORKSPACE }}
 
-      - name: Create check
+      - name: Finalize check-run
         if: always()
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
-          if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == 1 ]]; then
-            gh api repos/${{ github.repository }}/check-runs \
-              -X POST \
-              -H "Accept: application/vnd.github+json" \
-              -f name='terraform-plan / terraform-plan' \
-              -f head_sha="${{ inputs.commit_sha }}" \
-              -f status='completed' \
-              -f conclusion='failure'
-          else
-            gh api repos/${{ github.repository }}/check-runs \
-              -X POST \
-              -H "Accept: application/vnd.github+json" \
-              -f name='terraform-plan / terraform-plan' \
-              -f head_sha="${{ inputs.commit_sha }}" \
-              -f status='completed' \
-              -f conclusion='success'
+          conclusion="failure"
+
+          # Only override if graformer ran and produced an exit code
+          if [[ -n "${{ steps.graformer.outcome }}" && "${{ steps.graformer.outcome }}" == "success" ]]; then
+            if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == "0" || "${{ steps.graformer.outputs.plan-exitcode }}" == "2" ]]; then
+              conclusion="success"
+            fi
           fi
+
+          gh api repos/${{ github.repository }}/check-runs \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -f name='terraform-plan / terraform-plan' \
+            -f head_sha="${{ inputs.commit_sha }}" \
+            -f status='completed' \
+            -f conclusion="$conclusion"
