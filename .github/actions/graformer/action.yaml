@@ -56,9 +56,7 @@ runs:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
 #      run: terraform plan -no-color -input=false -detailed-exitcode
-      run: |
-        terraform plan -no-color -input=false -detailed-exitcode -out=tfplan.binary
-        terraform show -json tfplan.binary > plan.json
+      run: terraform plan -no-color -input=false -detailed-exitcode -out=tfplan.binary
 
     - name: Setup Go
       uses: actions/setup-go@v4
