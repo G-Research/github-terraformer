@@ -67,6 +67,7 @@ jobs:
           tfc-token: ${{ secrets.tfc_token }}
           tfc-organization: "GR-OSS"
           tfc-workspace: ${{ vars.WORKSPACE }}
+          gh-token: ${{ steps.generate-token.outputs.token }}
 
       - name: Finalize check-run
         if: always()

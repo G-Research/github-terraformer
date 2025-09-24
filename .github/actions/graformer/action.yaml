@@ -10,6 +10,9 @@ inputs:
   tfc-workspace:
     description: "HCP cloud workspace name"
     required: true
+  gh-token:
+    description: "GitHub token for posting PR comments"
+    required: true
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
@@ -62,6 +65,7 @@ runs:
         TF_PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
         PR_NUMBER: ${{ github.event.workflow_run.pull_request.number }}
         GITHUB_REPOSITORY: ${{ github.repository }}
+        GH_TOKEN: ${{ inputs.gh-token }}
       run: |
         # Save the Go script to a temp file (quick hackathon style)
         cat <<'EOF' > terraform-pr-comment.go
