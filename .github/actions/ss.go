@@ -1,0 +1,92 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+)
+
+func main() {
+	planOutput := os.Getenv("TF_PLAN_OUTPUT")
+	if planOutput == "" {
+		fmt.Println("TF_PLAN_OUTPUT not set")
+		os.Exit(1)
+	}
+
+	var toCreate, toDelete, toModify, toImport []string
+
+	lines := strings.Split(planOutput, "\n")
+	refreshRegex := regexp.MustCompile(`Refreshing state\.\.\.`)
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || refreshRegex.MatchString(trimmed) {
+			continue
+		}
+
+		switch {
+		case strings.HasPrefix(trimmed, "+ "):
+			toCreate = append(toCreate, trimmed[2:])
+		case strings.HasPrefix(trimmed, "- "):
+			toDelete = append(toDelete, trimmed[2:])
+		case strings.HasPrefix(trimmed, "~ "):
+			toModify = append(toModify, trimmed[2:])
+		case strings.HasPrefix(trimmed, "<="):
+			toImport = append(toImport, trimmed[2:])
+		}
+	}
+
+	// Build the comment
+	commentBuilder := &strings.Builder{}
+	writeSection := func(title string, items []string) {
+		if len(items) == 0 {
+			return
+		}
+		fmt.Fprintf(commentBuilder, "### %s\n", title)
+		for _, item := range items {
+			fmt.Fprintf(commentBuilder, "- %s\n", item)
+		}
+		fmt.Fprintln(commentBuilder)
+	}
+
+	writeSection("To be created", toCreate)
+	writeSection("To be deleted", toDelete)
+	writeSection("To be modified", toModify)
+	writeSection("To be imported", toImport)
+
+	comment := commentBuilder.String()
+	if comment == "" {
+		comment = "No resources will change."
+	}
+
+	// DEBUG: print to stdout
+	fmt.Println("===== Terraform PR Comment =====")
+	fmt.Println(comment)
+	fmt.Println("================================")
+
+	// Post to PR using gh CLI
+	prNumber := os.Getenv("PR_NUMBER")
+	if prNumber == "" {
+		fmt.Println("PR_NUMBER not set")
+		os.Exit(1)
+	}
+
+	repo := os.Getenv("GITHUB_REPOSITORY")
+	if repo == "" {
+		fmt.Println("GITHUB_REPOSITORY not set")
+		os.Exit(1)
+	}
+
+	cmd := exec.Command("gh", "pr", "comment", prNumber, "--repo", repo, "--body", comment)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("failed to post PR comment: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("PR comment posted successfully!")
+}
