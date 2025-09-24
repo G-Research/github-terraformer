@@ -10,12 +10,12 @@ inputs:
   tfc-workspace:
     description: "HCP cloud workspace name"
     required: true
-#  gh-token:
-#    description: "GitHub token for posting PR comments"
-#    required: true
-#  pr-number:
-#    description: "Pull request number to post comments to"
-#    required: true
+  gh-token:
+    description: "GitHub token for posting PR comments"
+    required: true
+  pr-number:
+    description: "Pull request number to post comments to"
+    required: true
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
@@ -61,9 +61,11 @@ runs:
       shell: bash
       env:
         TF_PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
-#        PR_NUMBER: ${{ inputs.pr-number }}
-#        GITHUB_REPOSITORY: ${{ github.repository }}
-#        GH_TOKEN: ${{ inputs.gh-token }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GH_TOKEN: ${{ inputs.gh-token }}
       run: |
-        echo "$TF_PLAN_OUTPUT" | grep 'Plan:'
+        plan_summary=$(echo "$TF_PLAN_OUTPUT" | grep 'Plan:')
+        gh pr comment $PR_NUMBER --body "### :terraform: Terraform Plan Result\n$plan_summary"
+
     
