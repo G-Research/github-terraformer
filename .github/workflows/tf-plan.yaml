@@ -86,19 +86,19 @@ jobs:
                 conclusion="success"
                 title="Terraform Plan Succeeded (no changes)"
                 summary="Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${details_url}"
-                text="Terraform exit code: 0"
+                text="${{ steps.graformer.outputs.plan-summary }}"
                 ;;
               2)
                 conclusion="success"
                 title="Terraform Plan Succeeded (with changes)"
                 summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
-                text="Terraform exit code: 2"
+                text="${{ steps.graformer.outputs.plan-summary }}"
                 ;;
               1)
                 conclusion="failure"
                 title="Terraform Plan Failed"
                 summary="Terraform plan failed during execution. Please check workflow logs for details: ${details_url}"
-                text="Terraform exit code: 1"
+                text="${{ steps.graformer.outputs.plan-summary }}"
                 ;;
             esac
           fi
