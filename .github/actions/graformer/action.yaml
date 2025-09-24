@@ -55,8 +55,7 @@ runs:
       env:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
-#      run: terraform plan -no-color -input=false -detailed-exitcode
-      run: terraform plan -no-color -input=false -detailed-exitcode -json
+      run: terraform plan -no-color -input=false -detailed-exitcode
 
     - name: Post Terraform plan summary to PR
       shell: bash
@@ -66,6 +65,5 @@ runs:
 #        GITHUB_REPOSITORY: ${{ github.repository }}
 #        GH_TOKEN: ${{ inputs.gh-token }}
       run: |
-        echo "Plan output:"
-        echo "$TF_PLAN_OUTPUT"
+        echo "$TF_PLAN_OUTPUT" | grep 'Plan:'
     
