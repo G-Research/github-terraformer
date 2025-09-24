@@ -60,6 +60,11 @@ jobs:
           checkout-sha: ${{ inputs.commit_sha }}
           checkout-token: ${{ secrets.gh_token }}
 
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
+        run: echo "$GITHUB_CONTEXT"
+
       - name: Setup terraform and run plan
         uses: ./.github/actions/graformer
         id: graformer
