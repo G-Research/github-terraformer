@@ -60,7 +60,7 @@ runs:
       shell: bash
       env:
         TF_PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PR_NUMBER: ${{ github.event.workflow_run.pull_request.number }}
         GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
         # Save the Go script to a temp file (quick hackathon style)
