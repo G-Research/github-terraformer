@@ -59,7 +59,6 @@ runs:
       shell: bash
       id: plan-summary
       run: |
-        echo "${{ steps.plan.outputs.stdout }}" > out.txt
-        plan_summary=$(cat out.txt | grep '^Plan:' | tail -n 1)
+        plan_summary=$(grep '^Plan:' <<< "${{ steps.plan.outputs.stdout }}" | tail -n 1)
         plan_summary_escaped=$(echo "$plan_summary" | sed 's/%/%25/g; s/\n/%0A/g; s/\r/%0D/g')
         echo "plan-summary=$plan_summary_escaped" >> $GITHUB_OUTPUT
