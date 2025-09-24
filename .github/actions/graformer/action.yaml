@@ -109,6 +109,12 @@ runs:
           writeSection("To be imported", toImport)
           comment := b.String()
           if comment=="" { comment="No resources will change." }
+          
+          // DEBUG: print to stdout
+          fmt.Println("===== Terraform PR Comment =====")
+          fmt.Println(comment)
+          fmt.Println("================================")
+          
           prNumber := os.Getenv("PR_NUMBER")
           repo := os.Getenv("GITHUB_REPOSITORY")
           cmd := exec.Command("gh", "pr", "comment", prNumber, "--repo", repo, "--body", comment)
