@@ -22,6 +22,12 @@ runs:
       with:
         cli_config_credentials_token: ${{ inputs.tfc-token }}
 
+    - name: Link backend file
+      working-directory: feature/github-repo-provisioning
+      id: link
+      shell: bash
+      run: ln -sf backend.tf.hcp backend.tf
+
     - name: Terraform fmt
       id: fmt
       shell: bash
