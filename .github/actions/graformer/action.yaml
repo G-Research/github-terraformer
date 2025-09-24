@@ -20,6 +20,9 @@ outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
     value: ${{ steps.plan.outputs.exitcode }}
+  plan-summary:
+    description: "Summary of the Terraform plan"
+    value: ${{ steps.post-comment.outputs.plan_summary }}
 runs:
   using: "composite"
   steps:
@@ -58,6 +61,7 @@ runs:
       run: terraform plan -no-color -input=false -detailed-exitcode
 
     - name: Post Terraform plan summary to PR
+      id: post-comment
       shell: bash
       env:
         TF_PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
@@ -68,3 +72,4 @@ runs:
         plan_summary=$(echo "$TF_PLAN_OUTPUT" | grep 'Plan:' | tail -n 1 | sed -r 's/\x1b\[[0-9;]*m//g')
         comment=$'### Terraform Plan Result\n\n```\n'"$plan_summary"$'\n```'
         gh pr comment "$PR_NUMBER" --body "$comment" --repo "$GITHUB_REPOSITORY"
+        echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
