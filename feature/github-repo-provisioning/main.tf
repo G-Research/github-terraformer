@@ -1,16 +1,3 @@
-terraform {
-  required_version = "~> 1.0"
-
-  cloud {}
-
-  required_providers {
-    github = {
-      source = "app.terraform.io/GR-OSS/github"
-      version = "6.5.0"
-    }
-  }
-}
-
 provider "github" {
   owner = var.owner
   app_auth {

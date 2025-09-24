@@ -45,3 +45,4 @@ feature/github-repo-provisioning/import-config.yaml
 
 feature/github-repo-importer/dumps/*
 feature/github-repo-importer/configs/*
+feature/github-repo-provisioning/backend.tf
