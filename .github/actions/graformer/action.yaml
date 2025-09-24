@@ -21,7 +21,6 @@ runs:
       uses: hashicorp/setup-terraform@v3
       with:
         cli_config_credentials_token: ${{ inputs.tfc-token }}
-        terraform_wrapper: false
 
     - name: Terraform fmt
       id: fmt
@@ -50,14 +49,68 @@ runs:
       env:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
-      run: |
-        terraform plan -no-color -input=false -detailed-exitcode -out=tfplan
-        terraform show -json tfplan > tfplan.json
-        ls -la tfplan.json
+      run: terraform plan -no-color -input=false -detailed-exitcode
 
-    - name: Comment Plan Changes
-      uses: liatrio/terraform-change-pr-commenter@v1.10.0
+    - name: Setup Go
+      uses: actions/setup-go@v4
       with:
-        json-file: tfplan.json
-        comment-header: "Terraform Plan for ${{ inputs.environment }}"
-        expand-comment: 'true'
+        go-version: '1.21'   # adjust to your preferred Go version
+
+    - name: Post Terraform plan summary to PR
+      shell: bash
+      env:
+        TF_PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        # Save the Go script to a temp file (quick hackathon style)
+        cat <<'EOF' > terraform-pr-comment.go
+        package main
+        import (
+          "fmt"
+          "os"
+          "os/exec"
+          "regexp"
+          "strings"
+        )
+        func main() {
+          planOutput := os.Getenv("TF_PLAN_OUTPUT")
+          if planOutput == "" { fmt.Println("TF_PLAN_OUTPUT not set"); os.Exit(1) }
+          var toCreate, toDelete, toModify, toImport []string
+          lines := strings.Split(planOutput, "\n")
+          refreshRegex := regexp.MustCompile(`Refreshing state\.\.\.`)
+          for _, line := range lines {
+            line = strings.TrimSpace(line)
+            if line == "" || refreshRegex.MatchString(line) { continue }
+            switch {
+            case strings.HasPrefix(line, "+ "): toCreate = append(toCreate, line[2:])
+            case strings.HasPrefix(line, "- "): toDelete = append(toDelete, line[2:])
+            case strings.HasPrefix(line, "~ "): toModify = append(toModify, line[2:])
+            case strings.HasPrefix(line, "<="): toImport = append(toImport, line[2:])
+            }
+          }
+          b := &strings.Builder{}
+          writeSection := func(title string, items []string) {
+            if len(items)==0 { return }
+            fmt.Fprintf(b, "### %s\n", title)
+            for _, item := range items { fmt.Fprintf(b, "- %s\n", item) }
+            fmt.Fprintln(b)
+          }
+          writeSection("To be created", toCreate)
+          writeSection("To be deleted", toDelete)
+          writeSection("To be modified", toModify)
+          writeSection("To be imported", toImport)
+          comment := b.String()
+          if comment=="" { comment="No resources will change." }
+          prNumber := os.Getenv("PR_NUMBER")
+          repo := os.Getenv("GITHUB_REPOSITORY")
+          cmd := exec.Command("gh", "pr", "comment", prNumber, "--repo", repo, "--body", comment)
+          cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+          if err := cmd.Run(); err != nil { fmt.Printf("failed to post PR comment: %v\n", err); os.Exit(1) }
+          fmt.Println("PR comment posted successfully!")
+        }
+        EOF
+
+        # Run it
+        go run terraform-pr-comment.go
+    
