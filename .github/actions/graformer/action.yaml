@@ -14,6 +14,9 @@ outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
     value: ${{ steps.plan.outputs.exitcode }}
+  plan-summary:
+    description: "Summary of the plan output"
+    value: ${{ steps.plan-summary.outputs.plan-summary }}
 runs:
   using: "composite"
   steps:
@@ -50,3 +53,12 @@ runs:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: terraform plan -no-color -input=false -detailed-exitcode
+
+    - name: Save plan summary
+      if: steps.plan.outputs.exitcode != null
+      shell: bash
+      id: plan-summary
+      run: |
+        plan-summary=$(echo "${{ steps.plan.outputs.exitcode }}" | grep '^Plan:' | tail -n 1)
+        plan-summary-escaped=$(echo "$plan-summary" | sed 's/%/%25/g; s/\n/%0A/g; s/\r/%0D/g')
+        echo "plan-summary=plan-summary-escaped" >> $GITHUB_OUTPUT
