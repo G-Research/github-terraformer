@@ -77,12 +77,33 @@ jobs:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
           conclusion="failure"
+          title="Terraform Plan Failed"
+          summary="The Terraform plan did not complete successfully."
+          text="Please check workflow logs for details."
+          details_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           # Only override if graformer ran and produced an exit code
           if [[ -n "${{ steps.graformer.outcome }}" && "${{ steps.graformer.outcome }}" == "success" ]]; then
-            if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == "0" || "${{ steps.graformer.outputs.plan-exitcode }}" == "2" ]]; then
-              conclusion="success"
-            fi
+            case "${{ steps.graformer.outputs.plan-exitcode }}" in
+              0)
+                conclusion="success"
+                title="Terraform Plan Succeeded (no changes)"
+                summary="Terraform executed successfully with **no changes** required."
+                text="Terraform exit code: 0"
+                ;;
+              2)
+                conclusion="success"
+                title="Terraform Plan Succeeded (with changes)"
+                summary="Terraform executed successfully and **changes are required**."
+                text="Terraform exit code: 2"
+                ;;
+              1)
+                conclusion="failure"
+                title="Terraform Plan Failed"
+                summary="Terraform plan failed during execution."
+                text="Terraform exit code: 1"
+                ;;
+            esac
           fi
 
           gh api repos/${{ github.repository }}/check-runs \
@@ -91,4 +112,8 @@ jobs:
             -f name='terraform-plan / terraform-plan' \
             -f head_sha="${{ inputs.commit_sha }}" \
             -f status='completed' \
-            -f conclusion="$conclusion"
+            -f conclusion="$conclusion" \
+            -f details_url="$details_url" \
+            -f output[title]="$title" \
+            -f output[summary]="$summary" \
+            -f output[text]="$text"
