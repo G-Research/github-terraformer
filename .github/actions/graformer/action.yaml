@@ -60,13 +60,14 @@ runs:
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
         terraform plan -no-color -input=false -detailed-exitcode -out=tfplan
-        terraform show -no-color -json tfplan | jq -r '.resource_changes | map(select(.change.importing != null))'
         terraform show -no-color -json tfplan \
           | jq -r '
-            .resource_changes
-            | map(select(.change.actions != ["no-op"]))
-            | group_by(.change.actions)
-            | map({ (.[0].change.actions[0]): map(.address) })
+            {
+              create:  [.resource_changes[] | select(.change.actions == ["create"]) | .address],
+              update:  [.resource_changes[] | select(.change.actions == ["update"]) | .address],
+              delete:  [.resource_changes[] | select(.change.actions == ["delete"]) or .change.actions == ["delete","create"] or .change.actions == ["create","delete"] | .address],
+              import:  [.resource_changes[] | select(.change.importing != null) | "\(.address) (id: \(.change.importing.id))"]
+            }
           '
       
 
