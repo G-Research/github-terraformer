@@ -168,13 +168,19 @@ jobs:
           fi
 
           gh api repos/${{ github.repository }}/check-runs \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -f name='terraform-plan / terraform-plan' \
-            -f head_sha="${{ inputs.commit_sha }}" \
-            -f status='completed' \
-            -f conclusion="$conclusion" \
-            -f details_url="$details_url" \
-            -f output[title]="$title" \
-            -f output[summary]="$summary" \
-            -f output[text]="$text"
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              --input - <<EOF
+          {
+            "name": "terraform-plan / terraform-plan",
+            "head_sha": "${{ inputs.commit_sha }}",
+            "status": "completed",
+            "conclusion": "$conclusion",
+            "details_url": "$details_url",
+            "output": {
+              "title": "$title",
+              "summary": "$summary",
+              "text": $(echo "$text" | jq -R -s .)
+            }
+          }
+          EOF
