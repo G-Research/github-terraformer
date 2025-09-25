@@ -120,8 +120,8 @@ jobs:
             const prNumber = process.env.PR_NUMBER;
             if (prNumber) {
               await github.rest.issues.createComment({
-                owner: github.context.repo.owner,
-                repo: github.context.repo.repo,
+                owner: "gr-oss-developers",
+                repo: "gr-oss-developers-gcss-config",
                 issue_number: prNumber,
                 body,
               });
