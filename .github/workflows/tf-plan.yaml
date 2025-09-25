@@ -76,9 +76,11 @@ jobs:
         env:
           PLAN_SUMMARY: ${{ steps.graformer.outputs.plan-summary }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          EXITCODE: ${{ steps.graformer.outputs.plan-exitcode }}
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
+            console.log("Terraform plan exit code: " + process.env.EXITCODE);
             const planSummary = JSON.parse(process.env.PLAN_SUMMARY);
 
             const createCount = planSummary.create?.length || 0;
