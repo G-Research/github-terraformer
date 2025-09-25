@@ -95,14 +95,13 @@ jobs:
                 title="Terraform Plan Succeeded (with changes)"
                 summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
                 
-                plan_summary="${{ steps.graformer.outputs.plan-summary }}"
-                create_count=$(echo "$plan_summary" | jq '.create | length')
-                update_count=$(echo "$plan_summary" | jq '.update | length')
-                delete_count=$(echo "$plan_summary" | jq '.delete | length')
-                import_count=$(echo "$plan_summary" | jq '.import | length')
+                create_count=$(echo "${{ steps.graformer.outputs.plan-summary }}" | jq '.create | length')
+                update_count=$(echo "${{ steps.graformer.outputs.plan-summary }}" | jq '.update | length')
+                delete_count=$(echo "${{ steps.graformer.outputs.plan-summary }}" | jq '.delete | length')
+                import_count=$(echo "${{ steps.graformer.outputs.plan-summary }}" | jq '.import | length')
                 
-                # build Markdown (all in one quoted string)
-                text="$(cat <<EOF
+                # Build Markdown: use unquoted here-doc
+                read -r -d '' text <<EOF
                 ### Terraform Plan Result
                 
                 Terraform plan: ${import_count} to import, ${create_count} to add, ${update_count} to change, ${delete_count} to destroy.
@@ -127,7 +126,8 @@ jobs:
                 $(echo "$plan_summary" | jq -r '.import[]?')
                 \`\`\`
                 EOF
-                )"
+                
+                echo "$text"  # for debugging
                 ;;
               1)
                 conclusion="failure"
