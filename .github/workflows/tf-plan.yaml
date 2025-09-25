@@ -135,9 +135,10 @@ jobs:
       - name: Finalize check-run
         if: always()
         uses: actions/github-script@v7
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+#        env:
+#          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         with:
+          github-token: ${{ steps.generate-token.outputs.token }}
           script: |
             let conclusion = "failure";
             let title = "Terraform Plan Failed";
