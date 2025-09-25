@@ -134,53 +134,55 @@ jobs:
 
       - name: Finalize check-run
         if: always()
+        uses: actions/github-script@v7
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: |
-          conclusion="failure"
-          title="Terraform Plan Failed"
-          details_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          summary="The Terraform plan did not complete successfully. Please check workflow logs for details: ${details_url}"
-          text="error running terraform plan"
+        with:
+          script: |
+            let conclusion = "failure";
+            let title = "Terraform Plan Failed";
+            const detailsUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            let summary = `The Terraform plan did not complete successfully. Please check workflow logs for details: ${detailsUrl}`;
+            let text = "error running terraform plan";
 
-          # Only override if graformer ran and produced an exit code
-          if [[ -n "${{ steps.graformer.outcome }}" && "${{ steps.graformer.outcome }}" == "success" ]]; then
-            case "${{ steps.graformer.outputs.plan-exitcode }}" in
-              0)
-                conclusion="success"
-                title="Terraform Plan Succeeded (no changes)"
-                summary="Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${details_url}"
-                text="No infrastructure changes detected"
-                ;;
-              2)
-                conclusion="success"
-                title="Terraform Plan Succeeded (with changes)"
-                summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
-                text=$(printf '%s' "${{ steps.generate-comment.outputs.result }}" | sed 's/$/\\n/' | tr -d '\n' | sed 's/\\n$//')
-                ;;
-              1)
-                conclusion="failure"
-                title="Terraform Plan Failed"
-                summary="Terraform plan failed during execution. Please check workflow logs for details: ${details_url}"
-                text="error running terraform plan"
-                ;;
-            esac
-          fi
+            // Only override if graformer ran and produced an exit code
+            const graformerOutcome = "${{ steps.graformer.outcome }}";
+            const planExitCode = "${{ steps.graformer.outputs.plan-exitcode }}";
 
-          gh api repos/${{ github.repository }}/check-runs \
-              -X POST \
-              -H "Accept: application/vnd.github+json" \
-              --input - <<EOF
-          {
-            "name": "terraform-plan / terraform-plan",
-            "head_sha": "${{ inputs.commit_sha }}",
-            "status": "completed",
-            "conclusion": "$conclusion",
-            "details_url": "$details_url",
-            "output": {
-              "title": "$title",
-              "summary": "$summary",
-              "text": $(echo "$text" | jq -R -s .)
+            if (graformerOutcome && graformerOutcome === "success") {
+              switch (planExitCode) {
+                case "0":
+                  conclusion = "success";
+                  title = "Terraform Plan Succeeded (no changes)";
+                  summary = `Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${detailsUrl}`;
+                  text = "No infrastructure changes detected";
+                  break;
+                case "2":
+                  conclusion = "success";
+                  title = "Terraform Plan Succeeded (with changes)";
+                  summary = `Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${detailsUrl}`;
+                  text = `${{ steps.generate-comment.outputs.result }}`;
+                  break;
+                case "1":
+                  conclusion = "failure";
+                  title = "Terraform Plan Failed";
+                  summary = `Terraform plan failed during execution. Please check workflow logs for details: ${detailsUrl}`;
+                  text = "error running terraform plan";
+                  break;
+              }
             }
-          }
-          EOF
+
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: "terraform-plan / terraform-plan",
+              head_sha: "${{ inputs.commit_sha }}",
+              status: "completed",
+              conclusion: conclusion,
+              details_url: detailsUrl,
+              output: {
+                title: title,
+                summary: summary,
+                text: text
+              }
+            });
