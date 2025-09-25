@@ -10,12 +10,6 @@ inputs:
   tfc-workspace:
     description: "HCP cloud workspace name"
     required: true
-#  gh-token:
-#    description: "GitHub token for posting PR comments"
-#    required: true
-#  pr-number:
-#    description: "Pull request number to post comments to"
-#    required: true
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
@@ -59,7 +53,7 @@ runs:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
-        terraform plan -no-color -input=false -detailed-exitcode -out=tfplan
+        terraform plan -no-color -input=false -out=tfplan
         plan_summary=$(terraform show -no-color -json tfplan \
           | jq -c '
             {
@@ -74,18 +68,11 @@ runs:
             }
           '
         )
+        # Check if all arrays are empty
+        if [[ $(echo "$plan_summary" | jq '[.create,.update,.delete,.import] | map(length) | add') -eq 0 ]]; then
+          exitcode=0
+        else
+          exitcode=2
+        fi
+        echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
         echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
-
-#    - name: Post Terraform plan summary to PR
-#      id: post-comment
-#      shell: bash
-#      env:
-#        TF_PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
-#        PR_NUMBER: ${{ inputs.pr-number }}
-#        GITHUB_REPOSITORY: ${{ github.repository }}
-#        GH_TOKEN: ${{ inputs.gh-token }}
-#      run: |
-#        plan_summary=$(echo "$TF_PLAN_OUTPUT" | grep 'Plan:' | tail -n 1 | sed -r 's/\x1b\[[0-9;]*m//g')
-#        comment=$'### Terraform Plan Result\n\n```\n'"$plan_summary"$'\n```'
-#        gh pr comment "$PR_NUMBER" --body "$comment" --repo "$GITHUB_REPOSITORY"
-#        echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
