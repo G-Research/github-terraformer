@@ -167,6 +167,7 @@ jobs:
             esac
           fi
 
+          text=$(echo -e "$text")
           gh api repos/${{ github.repository }}/check-runs \
             -X POST \
             -H "Accept: application/vnd.github+json" \
@@ -177,6 +178,4 @@ jobs:
             -f details_url="$details_url" \
             -f output[title]="$title" \
             -f output[summary]="$summary" \
-            -f output[text]@-<<EOF
-            $text
-            EOF
+            -f output[text]="$text"
