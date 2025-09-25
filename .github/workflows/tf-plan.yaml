@@ -83,6 +83,7 @@ jobs:
           title="Terraform Plan Failed"
           details_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           summary="The Terraform plan did not complete successfully. Please check workflow logs for details: ${details_url}"
+          text="error running terraform plan"
 
           # Only override if graformer ran and produced an exit code
           if [[ -n "${{ steps.graformer.outcome }}" && "${{ steps.graformer.outcome }}" == "success" ]]; then
@@ -91,16 +92,52 @@ jobs:
                 conclusion="success"
                 title="Terraform Plan Succeeded (no changes)"
                 summary="Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${details_url}"
+                text="No infrastructure changes detected"
                 ;;
               2)
                 conclusion="success"
                 title="Terraform Plan Succeeded (with changes)"
                 summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
+                
+                plan_summary="${{ steps.graformer.outputs.plan-summary }}"
+                create_count=$(echo "$plan_summary" | jq '.create | length')
+                update_count=$(echo "$plan_summary" | jq '.update | length')
+                delete_count=$(echo "$plan_summary" | jq '.delete | length')
+                import_count=$(echo "$plan_summary" | jq '.import | length')
+                
+                # build Markdown (all in one quoted string)
+                text="$(cat <<EOF
+                ### Terraform Plan Result
+                
+                Terraform plan: ${import_count} to import, ${create_count} to add, ${update_count} to change, ${delete_count} to destroy.
+                
+                Resources to delete:
+                \`\`\`
+                $(echo "$plan_summary" | jq -r '.delete[]?')
+                \`\`\`
+                
+                Resources to create:
+                \`\`\`
+                $(echo "$plan_summary" | jq -r '.create[]?')
+                \`\`\`
+                
+                Resources to update:
+                \`\`\`
+                $(echo "$plan_summary" | jq -r '.update[]?')
+                \`\`\`
+                
+                Resources to import:
+                \`\`\`
+                $(echo "$plan_summary" | jq -r '.import[]?')
+                \`\`\`
+                EOF
+                )"
                 ;;
               1)
                 conclusion="failure"
                 title="Terraform Plan Failed"
                 summary="Terraform plan failed during execution. Please check workflow logs for details: ${details_url}"
+                text="error running terraform plan"
                 ;;
             esac
           fi
@@ -114,4 +151,5 @@ jobs:
             -f conclusion="$conclusion" \
             -f details_url="$details_url" \
             -f output[title]="$title" \
-            -f output[summary]="$summary"
+            -f output[summary]="$summary" \
+            -f output[text]="$text"
