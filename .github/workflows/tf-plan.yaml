@@ -136,38 +136,41 @@ jobs:
         uses: actions/github-script@v7
         env:
           PLAN_EXITCODE: ${{ steps.graformer.outputs.plan-exitcode }}
+          PLAN_SUMMARY: ${{ steps.generate-comment.outputs.result }}
 #          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
             console.log(`context: ${JSON.stringify(context)}`);
-#            let conclusion = "failure";
-#            let title = "Terraform Plan Failed";
-#            const detailsUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
-#            let summary = `The Terraform plan did not complete successfully. Please check workflow logs for details: ${detailsUrl}`;
-#            let text = "error running terraform plan";
-#
-#            switch (process.env.PLAN_EXITCODE) {
-#              case "0":
-#                conclusion = "success";
-#                title = "Terraform Plan Succeeded (no changes)";
-#                summary = `Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${detailsUrl}`;
-#                text = "No infrastructure changes detected";
-#                break;
-#              case "2":
-#                conclusion = "success";
-#                title = "Terraform Plan Succeeded (with changes)";
-#                summary = `Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${detailsUrl}`;
-#                text = `${{ steps.generate-comment.outputs.result }}`;
-#                break;
-#              case "1":
-#                conclusion = "failure";
-#                title = "Terraform Plan Failed";
-#                summary = `Terraform plan failed during execution. Please check workflow logs for details: ${detailsUrl}`;
-#                text = "error running terraform plan";
-#                break;
-#            }
-#
+            const planSummary = JSON.parse(process.env.PLAN_SUMMARY);
+            console.log(`planSummary: ${JSON.stringify(planSummary)}`);
+            let conclusion = "failure";
+            let title = "Terraform Plan Failed";
+            const detailsUrl = `https://github.com/${context.payload.repository.full_name}/actions/runs/${context.runId}`;
+            let summary = `The Terraform plan did not complete successfully. Please check workflow logs for details: ${detailsUrl}`;
+            let text = "error running terraform plan";
+
+            switch (process.env.PLAN_EXITCODE) {
+              case "0":
+                conclusion = "success";
+                title = "Terraform Plan Succeeded (no changes)";
+                summary = `Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${detailsUrl}`;
+                text = "No infrastructure changes detected";
+                break;
+              case "2":
+                conclusion = "success";
+                title = "Terraform Plan Succeeded (with changes)";
+                summary = `Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${detailsUrl}`;
+                text = planSummary;
+                break;
+              case "1":
+                conclusion = "failure";
+                title = "Terraform Plan Failed";
+                summary = `Terraform plan failed during execution. Please check workflow logs for details: ${detailsUrl}`;
+                text = "error running terraform plan";
+                break;
+            }
+
 #            await github.rest.checks.create({
 #              owner: context.repo.owner,
 #              repo: context.repo.repo,
