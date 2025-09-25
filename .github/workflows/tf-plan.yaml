@@ -156,7 +156,7 @@ jobs:
                 conclusion="success"
                 title="Terraform Plan Succeeded (with changes)"
                 summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
-                text=${{ steps.generate-comment.outputs.result }}
+                text='${{ steps.generate-comment.outputs.result }}'
                 ;;
               1)
                 conclusion="failure"
