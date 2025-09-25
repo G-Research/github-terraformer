@@ -70,7 +70,7 @@ runs:
                   or .change.actions == ["delete","create"] 
                   or .change.actions == ["create","delete"]) 
                 | .address],
-              import:  [.resource_changes[] | select(.change.importing != null) | "\(.address) (id: \(.change.importing.id))"]
+              import:  [.resource_changes[] | select(.change.importing != null) | .address]
             }
           '
         )
