@@ -20,9 +20,9 @@ outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
     value: ${{ steps.plan.outputs.exitcode }}
-#  plan-summary:
-#    description: "Summary of the Terraform plan"
-#    value: ${{ steps.post-comment.outputs.plan_summary }}
+  plan-summary:
+    description: "Summary of the Terraform plan"
+    value: ${{ steps.plan.outputs.plan_summary }}
 runs:
   using: "composite"
   steps:
@@ -60,7 +60,7 @@ runs:
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
         terraform plan -no-color -input=false -detailed-exitcode -out=tfplan
-        terraform show -no-color -json tfplan \
+        plan_summary=$(terraform show -no-color -json tfplan \
           | jq -r '
             {
               create:  [.resource_changes[] | select(.change.actions == ["create"]) | .address],
@@ -73,7 +73,8 @@ runs:
               import:  [.resource_changes[] | select(.change.importing != null) | "\(.address) (id: \(.change.importing.id))"]
             }
           '
-      
+        )
+        echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
 
 #    - name: Post Terraform plan summary to PR
 #      id: post-comment

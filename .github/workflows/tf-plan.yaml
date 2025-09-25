@@ -70,6 +70,9 @@ jobs:
           gh-token: ${{ steps.generate-token.outputs.token }}
           pr-number: ${{ github.event.workflow_run.pull_requests[0].number }}
 
+      - name: Debug
+        run: echo "${{ toJSON(steps.graformer.outputs.plan-summary) }}"
+
       - name: Finalize check-run
         if: always()
         env:
