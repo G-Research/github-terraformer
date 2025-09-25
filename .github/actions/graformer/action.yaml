@@ -60,8 +60,13 @@ runs:
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
         terraform plan -no-color -input=false -detailed-exitcode -out=tfplan
-        terraform show -no-color -json tfplan | jq '.resource_changes | map(select(.change.actions != ["no-op"]))
-        terraform show -no-color -json tfplan | jq '.resource_changes | map(select(.change.actions != ["no-op"]))
+        terraform show -no-color -json tfplan \
+          | jq -r '
+            .resource_changes
+            | map(select(.change.actions != ["no-op"]))
+            | group_by(.change.actions)
+            | map({ (.[0].change.actions[0]): map(.address) })
+          '
       
 
 #    - name: Post Terraform plan summary to PR
