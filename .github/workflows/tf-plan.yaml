@@ -77,11 +77,9 @@ jobs:
         env:
           PLAN_SUMMARY: ${{ steps.graformer.outputs.plan-summary }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
-          EXITCODE: ${{ steps.graformer.outputs.plan-exitcode }}
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
-            console.log("Terraform plan exit code: " + process.env.EXITCODE);
             const planSummary = JSON.parse(process.env.PLAN_SUMMARY);
 
             const createCount = planSummary.create?.length || 0;
@@ -159,6 +157,9 @@ jobs:
                 title="Terraform Plan Succeeded (with changes)"
                 summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
                 text="${{ steps.generate-comment.outputs.body }}"
+                echo "DEBUG ====="
+                echo "$text"
+                echo "DEBUG ====="
                 ;;
               1)
                 conclusion="failure"
