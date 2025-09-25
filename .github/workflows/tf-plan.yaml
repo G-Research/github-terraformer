@@ -177,4 +177,4 @@ jobs:
             -f details_url="$details_url" \
             -f output[title]="$title" \
             -f output[summary]="$summary" \
-            -f output[text]="$text"
+            -f output[text]=$text
