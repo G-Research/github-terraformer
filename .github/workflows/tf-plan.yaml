@@ -156,7 +156,7 @@ jobs:
                 conclusion="success"
                 title="Terraform Plan Succeeded (with changes)"
                 summary="Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${details_url}"
-                text=${{ steps.generate-comment.outputs.result }}
+                text=$(printf '%s' "${{ steps.generate-comment.outputs.result }}" | sed 's/$/\\n/' | tr -d '\n' | sed 's/\\n$//')
                 ;;
               1)
                 conclusion="failure"
@@ -167,7 +167,6 @@ jobs:
             esac
           fi
 
-          text=$(echo -e "$text")
           gh api repos/${{ github.repository }}/check-runs \
             -X POST \
             -H "Accept: application/vnd.github+json" \
