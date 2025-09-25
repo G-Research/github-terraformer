@@ -72,7 +72,7 @@ jobs:
 
       - name: Debug
         run: |
-          echo "Plan summary: ${{ steps.plan.outputs.plan_summary }}"
+          echo "Plan summary: ${{ steps.graformer.outputs.plan-summary }}"
 
       - name: Finalize check-run
         if: always()
