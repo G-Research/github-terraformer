@@ -61,7 +61,7 @@ runs:
       run: |
         terraform plan -no-color -input=false -detailed-exitcode -out=tfplan
         plan_summary=$(terraform show -no-color -json tfplan \
-          | jq -r '
+          | jq -c '
             {
               create:  [.resource_changes[] | select(.change.actions == ["create"]) | .address],
               update:  [.resource_changes[] | select(.change.actions == ["update"]) | .address],
