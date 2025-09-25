@@ -65,7 +65,11 @@ runs:
             {
               create:  [.resource_changes[] | select(.change.actions == ["create"]) | .address],
               update:  [.resource_changes[] | select(.change.actions == ["update"]) | .address],
-              delete:  [.resource_changes[] | select(.change.actions == ["delete"]) or .change.actions == ["delete","create"] or .change.actions == ["create","delete"] | .address],
+              delete:  [.resource_changes[] 
+                | select(.change.actions == ["delete"] 
+                  or .change.actions == ["delete","create"] 
+                  or .change.actions == ["create","delete"]) 
+                | .address],
               import:  [.resource_changes[] | select(.change.importing != null) | "\(.address) (id: \(.change.importing.id))"]
             }
           '
