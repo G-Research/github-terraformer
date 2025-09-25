@@ -170,6 +170,8 @@ jobs:
                 text = "error running terraform plan";
                 break;
             }
+            
+            console.log(`conclusion: ${conclusion}, title: ${title}, summary: ${summary}, text: ${text}`);
 
 #            await github.rest.checks.create({
 #              owner: context.repo.owner,
