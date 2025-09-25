@@ -173,17 +173,17 @@ jobs:
             
             console.log(`conclusion: ${conclusion}, title: ${title}, summary: ${summary}, text: ${text}`);
 
-#            await github.rest.checks.create({
-#              owner: context.repo.owner,
-#              repo: context.repo.repo,
-#              name: "terraform-plan / terraform-plan",
-#              head_sha: "${{ inputs.commit_sha }}",
-#              status: "completed",
-#              conclusion: conclusion,
-#              details_url: detailsUrl,
-#              output: {
-#                title: title,
-#                summary: summary,
-#                text: text
-#              }
-#            });
+            await github.rest.checks.create({
+              owner: context.payload.repository.owner.login,
+              repo: context.payload.repository.name,
+              name: "terraform-plan / terraform-plan",
+              head_sha: context.payload.workflow_run.head_sha,
+              status: "completed",
+              conclusion: conclusion,
+              details_url: detailsUrl,
+              output: {
+                title: title,
+                summary: summary,
+                text: text
+              }
+            });
