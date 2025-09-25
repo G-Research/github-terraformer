@@ -20,9 +20,9 @@ outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
     value: ${{ steps.plan.outputs.exitcode }}
-  plan-summary:
-    description: "Summary of the Terraform plan"
-    value: ${{ steps.post-comment.outputs.plan_summary }}
+#  plan-summary:
+#    description: "Summary of the Terraform plan"
+#    value: ${{ steps.post-comment.outputs.plan_summary }}
 runs:
   using: "composite"
   steps:
@@ -58,18 +58,22 @@ runs:
       env:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
-      run: terraform plan -no-color -input=false -detailed-exitcode
-
-    - name: Post Terraform plan summary to PR
-      id: post-comment
-      shell: bash
-      env:
-        TF_PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
-        PR_NUMBER: ${{ inputs.pr-number }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        GH_TOKEN: ${{ inputs.gh-token }}
       run: |
-        plan_summary=$(echo "$TF_PLAN_OUTPUT" | grep 'Plan:' | tail -n 1 | sed -r 's/\x1b\[[0-9;]*m//g')
-        comment=$'### Terraform Plan Result\n\n```\n'"$plan_summary"$'\n```'
-        gh pr comment "$PR_NUMBER" --body "$comment" --repo "$GITHUB_REPOSITORY"
-        echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
+        terraform plan -no-color -input=false -detailed-exitcode -out=tfplan
+        terraform show -no-color -json tfplan | jq '.resource_changes | map(select(.change.actions != ["no-op"]))
+        terraform show -no-color -json tfplan | jq '.resource_changes | map(select(.change.actions != ["no-op"]))
+      
+
+#    - name: Post Terraform plan summary to PR
+#      id: post-comment
+#      shell: bash
+#      env:
+#        TF_PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
+#        PR_NUMBER: ${{ inputs.pr-number }}
+#        GITHUB_REPOSITORY: ${{ github.repository }}
+#        GH_TOKEN: ${{ inputs.gh-token }}
+#      run: |
+#        plan_summary=$(echo "$TF_PLAN_OUTPUT" | grep 'Plan:' | tail -n 1 | sed -r 's/\x1b\[[0-9;]*m//g')
+#        comment=$'### Terraform Plan Result\n\n```\n'"$plan_summary"$'\n```'
+#        gh pr comment "$PR_NUMBER" --body "$comment" --repo "$GITHUB_REPOSITORY"
+#        echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
