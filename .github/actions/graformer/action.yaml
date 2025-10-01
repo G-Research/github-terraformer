@@ -54,22 +54,56 @@ runs:
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
         terraform plan -no-color -input=false -out=tfplan
-        plan_summary=$(terraform show -no-color -json tfplan \
-          | jq -c '
-            {
-              create:  [.resource_changes[] | select(.change.actions == ["create"]) | .address],
-              update:  [.resource_changes[] | select(.change.actions == ["update"]) | .address],
-              delete:  [.resource_changes[] 
-                | select(.change.actions == ["delete"] 
-                  or .change.actions == ["delete","create"] 
-                  or .change.actions == ["create","delete"]) 
-                | .address],
-              import:  [.resource_changes[] | select(.change.importing != null) | .address]
+        terraform show --json tfplan | jq '{resource_changes: [.resource_changes[]]}' > tfplan.json 
+        rm tfplan
+
+    - name: Inspect plan result
+      uses: actions/github-script@v7
+      id: inspect-plan-result
+      with:
+        script: |
+            const fs = require('fs');
+    
+            const planJson = JSON.parse(fs.readFileSync('feature/github-repo-provisioning/tfplan.json', 'utf8'));
+            const changes = {
+                create: [],
+                update: [],
+                delete: [],
+                import: [],
+                recreate: []
+            };
+    
+            if (planJson.resource_changes) {
+                for (const resourceChange of planJson.resource_changes) {
+                  const actions = resourceChange.change.actions;
+                  
+                  if (actions && actions.length === 1) {
+                    var action = actions[0];
+                    
+                    if (action === 'no-op' && resourceChange.change.importing !== null) {
+                      changes.import.push(`${resourceChange.address} ${resourceChange.name}`);
+                    }else if(action === 'create'){
+                        changes.create.push(`${resourceChange.address} ${resourceChange.name}`);
+                    }else if(action === 'delete'){
+                        changes.delete.push(`${resourceChange.address} ${resourceChange.name}`);
+                    }else if(action === 'update'){
+                        changes.update.push(`${resourceChange.address} ${resourceChange.name}`);
+                    }
+          
+                  } else if (actions && actions.length > 1) {
+                    changes.recreate.push(`${resourceChange.address} ${resourceChange.name}`);
+                  }
+                }
             }
-          '
-        )
+    
+            return changes;
+
+    - name: Set outputs
+      shell: bash
+      run: |        
         # Check if all arrays are empty
-        if [[ $(echo "$plan_summary" | jq '[.create,.update,.delete,.import] | map(length) | add') -eq 0 ]]; then
+        plan_summary=$(echo '${{ steps.inspect-plan-result.outputs.result }}' | jq '.')
+        if [[ $(echo "$plan_summary" | jq '[.create,.update,.delete,.import,.recreate] | map(length) | add') -eq 0 ]]; then
           exitcode=0
         else
           exitcode=2
