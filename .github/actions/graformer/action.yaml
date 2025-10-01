@@ -13,10 +13,10 @@ inputs:
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
-    value: ${{ steps.set-outputs.outputs.exitcode }}
+    value: ${{ steps.inspect-plan-result.outputs.exitcode }}
   plan-summary:
     description: "Summary of the Terraform plan"
-    value: ${{ steps.set-outputs.outputs.plan_summary }}
+    value: ${{ steps.inspect-plan-result.outputs.plan_summary }}
 runs:
   using: "composite"
   steps:
@@ -75,52 +75,46 @@ runs:
       id: inspect-plan-result
       with:
         script: |
-            const fs = require('fs');
-    
-            const planJson = JSON.parse(fs.readFileSync('feature/github-repo-provisioning/tfplan.json', 'utf8'));
-            const changes = {
-                create: [],
-                update: [],
-                delete: [],
-                import: [],
-                recreate: []
-            };
-    
-            if (planJson.resource_changes) {
-                for (const resourceChange of planJson.resource_changes) {
-                  const actions = resourceChange.change.actions;
+          const fs = require('fs');
+          const core = require('@actions/core');
+  
+          const planJson = JSON.parse(fs.readFileSync('feature/github-repo-provisioning/tfplan.json', 'utf8'));
+          const changes = {
+              create: [],
+              update: [],
+              delete: [],
+              import: [],
+              recreate: []
+          };
+  
+          if (planJson.resource_changes) {
+              for (const resourceChange of planJson.resource_changes) {
+                const actions = resourceChange.change.actions;
+                
+                if (actions && actions.length === 1) {
+                  var action = actions[0];
                   
-                  if (actions && actions.length === 1) {
-                    var action = actions[0];
-                    
-                    if (action === 'no-op' && resourceChange.change.importing !== null) {
-                      changes.import.push(`${resourceChange.address} ${resourceChange.name}`);
-                    }else if(action === 'create'){
-                        changes.create.push(`${resourceChange.address} ${resourceChange.name}`);
-                    }else if(action === 'delete'){
-                        changes.delete.push(`${resourceChange.address} ${resourceChange.name}`);
-                    }else if(action === 'update'){
-                        changes.update.push(`${resourceChange.address} ${resourceChange.name}`);
-                    }
-          
-                  } else if (actions && actions.length > 1) {
-                    changes.recreate.push(`${resourceChange.address} ${resourceChange.name}`);
+                  if (action === 'no-op' && resourceChange.change.importing !== null) {
+                    changes.import.push(`${resourceChange.address} ${resourceChange.name}`);
+                  }else if(action === 'create'){
+                      changes.create.push(`${resourceChange.address} ${resourceChange.name}`);
+                  }else if(action === 'delete'){
+                      changes.delete.push(`${resourceChange.address} ${resourceChange.name}`);
+                  }else if(action === 'update'){
+                      changes.update.push(`${resourceChange.address} ${resourceChange.name}`);
                   }
+        
+                } else if (actions && actions.length > 1) {
+                  changes.recreate.push(`${resourceChange.address} ${resourceChange.name}`);
                 }
-            }
-    
-            return changes;
-
-    - name: Set outputs
-      id: set-outputs
-      shell: bash
-      run: |        
-        # Check if all arrays are empty
-        plan_summary="${{ steps.inspect-plan-result.outputs.result }}"
-        if [[ $(echo "$plan_summary" | jq '[.create,.update,.delete,.import,.recreate] | map(length) | add') -eq 0 ]]; then
-          exitcode=0
-        else
-          exitcode=2
-        fi
-        echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
-        echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
+              }
+          }
+        
+          if(changes.create.length === 0 && changes.update.length === 0 && changes.delete.length === 0 && changes.import.length === 0 && changes.recreate.length === 0){
+            core.setOutput('exitcode', '0');
+          } else {
+            core.setOutput('exitcode', '2');
+          }
+        
+          core.setOutput('plan_summary', JSON.stringify(changes));
+          return changes;
