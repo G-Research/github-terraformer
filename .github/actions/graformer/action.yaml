@@ -13,10 +13,10 @@ inputs:
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
-    value: ${{ steps.plan.outputs.exitcode }}
+    value: ${{ steps.set-outputs.outputs.exitcode }}
   plan-summary:
     description: "Summary of the Terraform plan"
-    value: ${{ steps.plan.outputs.plan_summary }}
+    value: ${{ steps.set-outputs.outputs.plan_summary }}
 runs:
   using: "composite"
   steps:
@@ -112,6 +112,7 @@ runs:
             return changes;
 
     - name: Set outputs
+      id: set-outputs
       shell: bash
       run: |        
         # Check if all arrays are empty
