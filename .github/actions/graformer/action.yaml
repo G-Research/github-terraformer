@@ -116,7 +116,7 @@ runs:
       shell: bash
       run: |        
         # Check if all arrays are empty
-        plan_summary=$(echo "${{ steps.inspect-plan-result.outputs.result }}" | jq '.')
+        plan_summary="${{ steps.inspect-plan-result.outputs.result }}"
         if [[ $(echo "$plan_summary" | jq '[.create,.update,.delete,.import,.recreate] | map(length) | add') -eq 0 ]]; then
           exitcode=0
         else
