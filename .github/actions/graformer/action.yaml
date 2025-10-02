@@ -139,4 +139,4 @@ runs:
 
     - name: Clean up
       shell: bash
-      run: rm tfplan.json
+      run: rm feature/github-repo-provisioning/tfplan.json
