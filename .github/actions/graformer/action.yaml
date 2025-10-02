@@ -134,3 +134,9 @@ runs:
         
           core.setOutput('plan_summary', JSON.stringify(changes));
           return changes;
+          
+
+
+    - name: Clean up
+      shell: bash
+      run: rm tfplan.json
