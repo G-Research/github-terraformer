@@ -537,4 +537,7 @@ resource "github_repository_environment" "example" {
     protected_branches     = true
     custom_branch_policies = false
   }
+  lifecycle {
+    create_before_destroy = true
+  }
 }
