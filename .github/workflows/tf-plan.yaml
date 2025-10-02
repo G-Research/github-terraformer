@@ -91,7 +91,7 @@ jobs:
             const importCount = (planSummary.import?.length || 0) + recreateCount;
 
             function formatResources(arr) {
-              return arr?.length ? arr.join("\n") : "(none)";
+              return arr?.length ? arr.join("\n") : "";
             }
 
             const body = `
@@ -101,7 +101,7 @@ jobs:
             
             Resources to delete:
             \`\`\`
-            ${formatResources(planSummary.delete) || "nothing"}
+            ${formatResources(planSummary.delete)}
             \`\`\`
             
             Resources to create:
