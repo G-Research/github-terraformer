@@ -96,17 +96,17 @@ runs:
                   var action = actions[0];
           
                   if (action === 'no-op' && resourceChange.change.importing !== null && resourceChange.change.importing !== undefined) {
-                    changes.import.push(`${resourceChange.address} :: ${resourceChange.id}`);
+                    changes.import.push(`${resourceChange.address} :: ${resourceChange.before.id}`);
                   }else if(action === 'create'){
-                      changes.create.push(`${resourceChange.address} :: ${resourceChange.id}`);
+                      changes.create.push(`${resourceChange.address} :: ${resourceChange.before.id}`);
                   }else if(action === 'delete'){
-                      changes.delete.push(`${resourceChange.address} :: ${resourceChange.id}`);
+                      changes.delete.push(`${resourceChange.address} :: ${resourceChange.before.id}`);
                   }else if(action === 'update'){
-                      changes.update.push(`${resourceChange.address} :: ${resourceChange.id}`);
+                      changes.update.push(`${resourceChange.address} :: ${resourceChange.before.id}`);
                   }
         
                 } else if (actions && actions.length > 1) {
-                  changes.recreate.push(`${resourceChange.address} :: ${resourceChange.id}`);
+                  changes.recreate.push(`${resourceChange.address} :: ${resourceChange.before.id}`);
                 }
               }
           }
