@@ -530,10 +530,6 @@ resource "github_repository_ruleset" "ruleset" {
   }
 }
 
-data "github_user" "current" {
-  username = ""
-}
-
 resource "github_repository_environment" "example" {
   environment         = "example"
   repository          = "repo2"
