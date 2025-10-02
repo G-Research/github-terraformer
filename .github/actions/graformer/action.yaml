@@ -78,6 +78,7 @@ runs:
           const fs = require('fs');
   
           const planJson = JSON.parse(fs.readFileSync('feature/github-repo-provisioning/tfplan.json', 'utf8'));
+          console.log(JSON.stringify(planJson));
           const changes = {
               create: [],
               update: [],
@@ -89,8 +90,6 @@ runs:
           if (planJson.resource_changes) {
               for (const resourceChange of planJson.resource_changes) {
                 const actions = resourceChange.change.actions;
-                
-                console.log(JSON.stringify(resourceChange));
           
                 if (actions && actions.length === 1) {
                   var action = actions[0];
