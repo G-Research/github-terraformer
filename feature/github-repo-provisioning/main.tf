@@ -531,7 +531,7 @@ resource "github_repository_ruleset" "ruleset" {
 }
 
 resource "github_repository_environment" "example" {
-  environment         = "example2"
+  environment         = "whatever i put here"
   repository          = "repo2"
   deployment_branch_policy {
     protected_branches     = true
