@@ -529,3 +529,17 @@ resource "github_repository_ruleset" "ruleset" {
     }
   }
 }
+
+data "github_user" "current" {
+  username = ""
+}
+
+resource "github_repository_environment" "example" {
+  environment         = "example"
+  repository          = "repo2"
+  prevent_self_review = true
+  deployment_branch_policy {
+    protected_branches     = true
+    custom_branch_policies = false
+  }
+}
