@@ -537,7 +537,4 @@ resource "github_repository_environment" "example" {
     protected_branches     = true
     custom_branch_policies = false
   }
-  tags = {
-    ActualName = "whatever i put here"
-  }
 }
