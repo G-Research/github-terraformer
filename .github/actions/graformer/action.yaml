@@ -94,7 +94,7 @@ runs:
                 if (actions && actions.length === 1) {
                   var action = actions[0];
                   
-                  if (action === 'no-op' && resourceChange.change.importing !== null) {
+                  if (action === 'no-op' && resourceChange.change.importing !== null && resourceChange.change.importing !== undefined) {
                     changes.import.push(`${resourceChange.address} ${resourceChange.name}`);
                   }else if(action === 'create'){
                       changes.create.push(`${resourceChange.address} ${resourceChange.name}`);
