@@ -530,7 +530,7 @@ resource "github_repository_ruleset" "ruleset" {
   }
 }
 
-resource "github_repository_environment" "example" {
+resource "github_repository_environment" "example_env" {
   environment         = "example2"
   repository          = "repo2"
   deployment_branch_policy {
