@@ -85,10 +85,10 @@ jobs:
             const planSummary = JSON.parse(process.env.PLAN_SUMMARY);
 
             const recreateCount = planSummary.recreate?.length || 0;
-            const createCount = (planSummary.create?.length || 0) + recreateCount;
-            const updateCount = (planSummary.update?.length || 0) + recreateCount;
-            const deleteCount = (planSummary.delete?.length || 0) + recreateCount;
+            const updateCount = planSummary.update?.length || 0;
             const importCount = planSummary.import?.length || 0;
+            const createCount = (planSummary.create?.length || 0) + recreateCount;
+            const deleteCount = (planSummary.delete?.length || 0) + recreateCount;
 
             function formatResources(arr) {
               return arr?.length ? arr.join("\n") : "";
