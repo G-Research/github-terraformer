@@ -90,10 +90,10 @@ runs:
               for (const resourceChange of planJson.resource_changes) {
                 const actions = resourceChange.change.actions;
                 
+                console.log(JSON.stringify(resourceChange));
+          
                 if (actions && actions.length === 1) {
                   var action = actions[0];
-                  
-                  console.log(JSON.stringify(resourceChange));
           
                   if (action === 'no-op' && resourceChange.change.importing !== null && resourceChange.change.importing !== undefined) {
                     changes.import.push(`${resourceChange.address} :: ${resourceChange.name}`);
