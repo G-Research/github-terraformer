@@ -101,7 +101,7 @@ jobs:
             
             Resources to delete:
             \`\`\`
-            ${formatResources(planSummary.delete)}
+            ${formatResources(planSummary.delete) || "nothing"}
             \`\`\`
             
             Resources to create:
