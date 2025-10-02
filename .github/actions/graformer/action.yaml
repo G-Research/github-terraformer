@@ -88,15 +88,19 @@ runs:
           };
           
           function getResourceNameFromChange(resourceChange) {
-              if(resourceChange.name !== null && resourceChange !== undefined){
-                    return resourceChange.name;
-              } else if(resourceChange.environment !== null && resourceChange.environment !== undefined){
-                  return resourceChange.environment;
-              } else if(resourceChange.id !== null && resourceChange.id !== undefined){
-                  return resourceChange.id;
-              } else {
-                  return "unknown";
-              }
+            if(resourceChange.name !== null && resourceChange.name !== undefined){
+              return resourceChange.name;
+            } else if(resourceChange.environment !== null && resourceChange.environment !== undefined){
+              return resourceChange.environment;
+            } else if(resourceChange.branch !== null && resourceChange.branch !== undefined){
+              return resourceChange.branch;
+            } else if(resourceChange.pattern !== null && resourceChange.pattern !== undefined){
+              return resourceChange.pattern;
+            } else if(resourceChange.id !== null && resourceChange.id !== undefined){
+              return resourceChange.id;
+            } else {
+              return "unknown";
+            }
           }
   
           if (planJson.resource_changes) {
