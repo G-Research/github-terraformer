@@ -91,9 +91,9 @@ runs:
             if(resourceChange.name !== null && resourceChange.name !== undefined){
               return resourceChange.name;
             } else if(resourceChange.environment !== null && resourceChange.environment !== undefined){
-              return resourceChange.environment;
+              return `${resourceChange.repository}/${resourceChange.environment}`;
             } else if(resourceChange.branch !== null && resourceChange.branch !== undefined){
-              return resourceChange.branch;
+              return `${resourceChange.repository}/${resourceChange.branch}`;
             } else if(resourceChange.pattern !== null && resourceChange.pattern !== undefined){
               return resourceChange.pattern;
             } else if(resourceChange.id !== null && resourceChange.id !== undefined){
@@ -111,17 +111,17 @@ runs:
               var action = actions[0];
               
               if (action === 'no-op' && resourceChange.change.importing !== null && resourceChange.change.importing !== undefined) {
-                changes.import.push(`${resourceChange.address} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
+                changes.import.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
               }else if(action === 'create'){
-                changes.create.push(`${resourceChange.address} :: ${getResourceNameFromChange(resourceChange.change.after)}`);
+                changes.create.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.after)}`);
               }else if(action === 'delete'){
-                changes.delete.push(`${resourceChange.address} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
+                changes.delete.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
               }else if(action === 'update'){
-                changes.update.push(`${resourceChange.address} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
+                changes.update.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
               }
               
               } else if (actions && actions.length > 1) {
-                changes.recreate.push(`${resourceChange.address} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
+                changes.recreate.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
               }
             }
           }
