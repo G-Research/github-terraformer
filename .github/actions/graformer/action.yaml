@@ -87,19 +87,24 @@ runs:
               recreate: []
           };
           
-          function getResourceNameFromChange(resourceChange) {
-            if(resourceChange.name !== null && resourceChange.name !== undefined){
-              return resourceChange.name;
-            } else if(resourceChange.environment !== null && resourceChange.environment !== undefined){
-              return `${resourceChange.repository}/${resourceChange.environment}`;
-            } else if(resourceChange.branch !== null && resourceChange.branch !== undefined){
-              return `${resourceChange.repository}/${resourceChange.branch}`;
-            } else if(resourceChange.pattern !== null && resourceChange.pattern !== undefined){
-              return resourceChange.pattern;
-            } else if(resourceChange.id !== null && resourceChange.id !== undefined){
-              return resourceChange.id;
+          function getResourceNameFromChange(resourceChange, actualChange){
+            if(resourceChange.type === 'github_repository'){
+              return `${resourceChange.type} :: ${resourceChange.name}`
+            }else if(resourceChange.type === 'github_repository_ruleset'){
+              return `${resourceChange.type} :: ${resourceChange.repository}/${resourceChange.name}`
+            }else if(resourceChange.type === 'github_repository_collaborator'){
+          
+            }else if(resourceChange.type === 'github_branch_default'){
+              return `${resourceChange.type} :: ${resourceChange.repository}/${resourceChange.branch}`
+            }else if(resourceChange.type === 'github_team_repository'){
+          
+            }else if(resourceChange.type === 'github_branch_protection'){
+              const match = resourceChange.address.match(/module\.repository\["([^"]+)"\]/);
+              return `${resourceChange.type} :: ${match[1]}/${resourceChange.pattern}`;
+            }else if(resourceChange.type === 'github_repository_environment'){
+              return `${resourceChange.type} :: ${resourceChange.repository}/${resourceChange.environment}`;
             } else {
-              return "unknown";
+                return `unknown type ${resourceChange.type}. resource address: ${resourceChange}`
             }
           }
           
@@ -111,17 +116,17 @@ runs:
               var action = actions[0];
               
               if (action === 'no-op' && resourceChange.change.importing !== null && resourceChange.change.importing !== undefined) {
-                changes.import.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
+                changes.import.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.before)}`);
               }else if(action === 'create'){
-                changes.create.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.after)}`);
+                changes.create.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.after)}`);
               }else if(action === 'delete'){
-                changes.delete.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
+                changes.delete.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.before)}`);
               }else if(action === 'update'){
-                changes.update.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
+                changes.update.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.before)}`);
               }
               
               } else if (actions && actions.length > 1) {
-                changes.recreate.push(`${resourceChange.type} :: ${getResourceNameFromChange(resourceChange.change.before)}`);
+                changes.recreate.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.before)}`);
               }
             }
           }
