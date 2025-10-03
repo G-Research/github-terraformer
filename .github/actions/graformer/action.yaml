@@ -89,22 +89,22 @@ runs:
           
           function getResourceNameFromChange(resourceChange, actualChange){
             if(resourceChange.type === 'github_repository'){
-              return `${resourceChange.type} :: ${resourceChange.name}`
+              return `${resourceChange.type} :: ${actualChange.name}`
             }else if(resourceChange.type === 'github_repository_ruleset'){
-              return `${resourceChange.type} :: ${resourceChange.repository}/${resourceChange.name}`
+              return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.name}`
             }else if(resourceChange.type === 'github_repository_collaborator'){
           
             }else if(resourceChange.type === 'github_branch_default'){
-              return `${resourceChange.type} :: ${resourceChange.repository}/${resourceChange.branch}`
+              return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.branch}`
             }else if(resourceChange.type === 'github_team_repository'){
           
             }else if(resourceChange.type === 'github_branch_protection'){
               const match = resourceChange.address.match(/module\.repository\["([^"]+)"\]/);
-              return `${resourceChange.type} :: ${match[1]}/${resourceChange.pattern}`;
+              return `${resourceChange.type} :: ${match[1]}/${actualChange.pattern}`;
             }else if(resourceChange.type === 'github_repository_environment'){
-              return `${resourceChange.type} :: ${resourceChange.repository}/${resourceChange.environment}`;
+              return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.environment}`;
             } else {
-                return `unknown type ${resourceChange.type}. resource address: ${resourceChange}`
+                return `unknown type ${resourceChange.type}. resource address: ${resourceChange.address}`
             }
           }
           
