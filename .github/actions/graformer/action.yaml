@@ -78,7 +78,7 @@ runs:
           const fs = require('fs');
   
           const planJson = JSON.parse(fs.readFileSync('feature/github-repo-provisioning/tfplan.json', 'utf8'));
-          
+          console.log(JSON.stringify(planJson, null, 2));
           const changes = {
               create: [],
               update: [],
