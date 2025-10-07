@@ -74,7 +74,7 @@ jobs:
 
       - name: Post the plan summary as comment on the PR
         if: steps.graformer.outputs.plan-exitcode != '1'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         id: generate-comment
         env:
           PLAN_SUMMARY: ${{ steps.graformer.outputs.plan-summary }}
@@ -139,7 +139,7 @@ jobs:
 
       - name: Finalize check-run
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           PLAN_EXITCODE: ${{ steps.graformer.outputs.plan-exitcode }}
           PLAN_SUMMARY: ${{ steps.generate-comment.outputs.result }}

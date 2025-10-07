@@ -39,7 +39,7 @@ jobs:
 
       - name: Parse and validate input
         id: parse-upstream
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           UPSTREAM_REPO: ${{ inputs.upstream_repo }}
           FORK_NAME: ${{ inputs.fork_name }}
