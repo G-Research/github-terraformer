@@ -8,6 +8,10 @@ on:
         description: "GCSS ref to checkout"
         required: false
         default: "main"
+      tfc_org:
+        type: string
+        description: "Terraform Cloud organization"
+        required: true
     secrets:
       tfc_token:
         description: "Terraform Cloud API token"
@@ -37,7 +41,7 @@ jobs:
         uses: ./.github/actions/graformer
         with:
           tfc-token: ${{ secrets.tfc_token }}
-          tfc-organization: "GR-OSS"
+          tfc-organization: ${{ inputs.tfc_org }}
           tfc-workspace: ${{ vars.WORKSPACE }}
 
         # 0 for green plan no changes, 2 for green plan with changes
