@@ -16,6 +16,10 @@ on:
         type: string
         description: 'The pull request number to promote'
         required: true
+      tfc_org:
+        type: string
+        description: 'The Terraform Cloud organization'
+        required: true
     secrets:
       app_private_key:
         required: true
@@ -55,14 +59,14 @@ jobs:
         uses: ./.github/actions/graformer
         with:
           tfc-token: ${{ secrets.tfc_token }}
-          tfc-organization: "GR-OSS"
+          tfc-organization: ${{ inputs.tfc_org }}
           tfc-workspace: ${{ vars.WORKSPACE }}
 
       - name: Run Terraform apply
         if: steps.graformer.outputs.plan-exitcode == '2'
         working-directory: feature/github-repo-provisioning
         env:
-          TF_CLOUD_ORGANIZATION: "GR-OSS"
+          TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
           TF_WORKSPACE: ${{ vars.WORKSPACE }}
         run: terraform apply -no-color -input=false -auto-approve
 

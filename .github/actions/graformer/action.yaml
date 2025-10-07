@@ -13,7 +13,10 @@ inputs:
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
-    value: ${{ steps.plan.outputs.exitcode }}
+    value: ${{ steps.inspect-plan-result.outputs.exitcode }}
+  plan-summary:
+    description: "Summary of the Terraform plan"
+    value: ${{ steps.inspect-plan-result.outputs.plan_summary }}
 runs:
   using: "composite"
   steps:
@@ -62,4 +65,86 @@ runs:
       env:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
-      run: terraform plan -no-color -input=false -detailed-exitcode
+      run: |
+        terraform plan -no-color -input=false -out=tfplan
+        terraform show --json tfplan | jq '{
+          resource_changes: [.resource_changes[]],
+          data: [.prior_state.values.root_module.resources[] | select(.mode == "data" and .type == "github_team")]
+        }' > tfplan.json
+        rm tfplan
+
+    - name: Inspect plan result
+      uses: actions/github-script@v7
+      id: inspect-plan-result
+      with:
+        script: |
+          const fs = require('fs');
+
+          const planJson = JSON.parse(fs.readFileSync('feature/github-repo-provisioning/tfplan.json', 'utf8'));          
+          const teamMap = Object.fromEntries(
+            planJson.data.map(item => [item.values.id, item.values.name])
+          );
+          const changes = {
+              create: [],
+              update: [],
+              delete: [],
+              import: [],
+              recreate: []
+          };
+          
+          function getResourceNameFromChange(resourceChange, actualChange){
+            if(resourceChange.type === 'github_repository'){
+              return `${resourceChange.type} :: ${actualChange.name}`
+            }else if(resourceChange.type === 'github_repository_ruleset'){
+              return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.name}`
+            }else if(resourceChange.type === 'github_repository_collaborator'){
+              return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.username}`
+            }else if(resourceChange.type === 'github_branch_default'){
+              return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.branch}`
+            }else if(resourceChange.type === 'github_team_repository'){
+              return `${resourceChange.type} :: ${actualChange.repository}/${teamMap[actualChange.team_id]}`          
+            }else if(resourceChange.type === 'github_branch_protection'){
+              const match = resourceChange.address.match(/module\.repository\["([^"]+)"\]/);
+              return `${resourceChange.type} :: ${match[1]}/${actualChange.pattern}`;
+            }else if(resourceChange.type === 'github_repository_environment'){
+              return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.environment}`;
+            } else {
+                return `unknown type ${resourceChange.type}. resource address: ${resourceChange.address}`
+            }
+          }
+          
+          if (planJson.resource_changes) {
+            for (const resourceChange of planJson.resource_changes) {
+              const actions = resourceChange.change.actions;
+              
+              if (actions && actions.length === 1) {
+              var action = actions[0];
+              
+              if (action === 'no-op' && resourceChange.change.importing !== null && resourceChange.change.importing !== undefined) {
+                changes.import.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.before)}`);
+              }else if(action === 'create'){
+                changes.create.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.after)}`);
+              }else if(action === 'delete'){
+                changes.delete.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.before)}`);
+              }else if(action === 'update'){
+                changes.update.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.before)}`);
+              }
+              
+              } else if (actions && actions.length > 1) {
+                changes.recreate.push(`${getResourceNameFromChange(resourceChange, resourceChange.change.before)}`);
+              }
+            }
+          }
+        
+          if(changes.create.length === 0 && changes.update.length === 0 && changes.delete.length === 0 && changes.import.length === 0 && changes.recreate.length === 0){
+            core.setOutput('exitcode', '0');
+          } else {
+            core.setOutput('exitcode', '2');
+          }
+        
+          core.setOutput('plan_summary', JSON.stringify(changes));
+          return changes;
+
+    - name: Clean up
+      shell: bash
+      run: rm feature/github-repo-provisioning/tfplan.json

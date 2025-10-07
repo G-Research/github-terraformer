@@ -15,7 +15,7 @@ runs:
   steps:
     - name: Compare directories and remove identical files
       shell: bash
-      working-directory: feature/github-repo-importer
+      working-directory: ${{ inputs.working-directory }}
       env:
         SOURCE_DIRECTORY: ${{ inputs.source-directory }}
         TARGET_DIRECTORY: ${{ inputs.target-directory }}
