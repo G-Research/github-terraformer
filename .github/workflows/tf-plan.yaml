@@ -165,6 +165,9 @@ jobs:
                 title = "Terraform Plan Succeeded (with changes)";
                 summary = `Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${detailsUrl}`;
                 text = planSummary;
+                if (text.length > 65535) {
+                  text = "Log output is too big. Please check the workflow logs for details.";
+                }
                 break;
               case "1":
                 conclusion = "failure";
