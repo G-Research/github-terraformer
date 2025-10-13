@@ -1,3 +1,11 @@
+terraform {
+  required_providers {
+    github = {
+      source  = "integrations/github"
+      version = "6.6.0"
+    }
+  }
+}
 provider "github" {
   owner = var.owner
   app_auth {
@@ -472,7 +480,7 @@ resource "github_repository_ruleset" "ruleset" {
           for_each = try(required_status_checks.value.required_check, [])
           content {
             context       = required_check.value.context
-            integration_id = required_check.value.integration_id
+            integration_id = lookup(required_check.value, "integration_id", null)
           }
         }
       }
