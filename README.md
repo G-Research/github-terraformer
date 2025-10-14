@@ -6,7 +6,7 @@
 
 # 📦 Github terraformer
 
-This repository automates the management of GitHub repositories within your GitHub organization using Terraform Cloud and GitHub Actions. It supports both the **import of existing repositories** and the **provisioning of new repositories**, ensuring GitHub configuration is reproducible, auditable, and version-controlled. This repository contains reusable workflows that act as an API that you should use in your repository (akka config repo) that should contain configuration files of repositories of your organization. Config repo is a repository that contains yaml configuration files for each repository in your organization, and should be excluded from Terraform management.
+This repository automates the management of GitHub repositories within your GitHub organization using Terraform Cloud and GitHub Actions. It supports both the **import of existing repositories** and the **provisioning of new repositories**, ensuring GitHub configuration is reproducible, auditable, and version-controlled. This repository contains reusable workflows that act as an API that you should use in your repository (aka config repo) that should contain configuration files of repositories of your organization. Config repo is a repository that contains yaml configuration files for each repository in your organization, and should be excluded from Terraform management.
 
 ## 🆕 Creating New Repositories
 
@@ -26,7 +26,7 @@ To provision a **brand-new repository** in your GitHub organization:
 
 To import a **forked** repository into the organization:
 
-1. Trigger the Create fork workflow
+1. Trigger the Create fork workflow on your config repo
 2. Provide input:
     - Repo to fork (in the format of `owner/repo`)
     - Name of the new forked repository. If left empty, default would be the same as the upstream repo name
