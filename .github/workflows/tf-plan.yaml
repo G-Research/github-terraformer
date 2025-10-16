@@ -42,16 +42,18 @@ jobs:
 
       - name: Create in-progress check-run
         uses: actions/github-script@v7
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
             const detailsUrl = `https://github.com/${context.payload.repository.full_name}/actions/runs/${context.runId}`;
-            
+
             await github.rest.checks.create({
                 owner: context.payload.repository.owner.login,
                 repo: context.payload.repository.name,
                 name: "Terraform plan",
-                head_sha: context.payload.workflow_run.head_sha,
+                head_sha: process.env.COMMIT_SHA,
                 status: "in_progress",
                 details_url: detailsUrl,
                 output: {
