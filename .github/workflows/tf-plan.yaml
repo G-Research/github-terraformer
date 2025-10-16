@@ -47,7 +47,7 @@ jobs:
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
-            const detailsUrl = `https://github.com/${context.payload.repository.full_name}/actions/runs/${context.runId}`;
+            const detailsUrl = `${context.serverUrl}/${context.payload.repository.full_name}/actions/runs/${context.runId}`;
             
             await github.rest.checks.create({
                 owner: context.payload.repository.owner.login,
