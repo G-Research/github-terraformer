@@ -83,59 +83,106 @@ jobs:
           tfc-organization: ${{ inputs.tfc_org }}
           tfc-workspace: ${{ vars.WORKSPACE }}
 
-      - name: Post the plan summary as comment on the PR
-        if: steps.graformer.outputs.plan-exitcode != '1'
-        uses: actions/github-script@v7
-        id: generate-comment
+      - name: Post plan summary and handle check-run
+        if: always()
+        uses: actions/github-script@v8
         env:
           PLAN_SUMMARY: ${{ steps.graformer.outputs.plan-summary }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          PLAN_EXITCODE: ${{ steps.graformer.outputs.plan-exitcode }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
-            const planSummary = JSON.parse(process.env.PLAN_SUMMARY);
-
-            const recreateCount = planSummary.recreate?.length || 0;
-            const updateCount = planSummary.update?.length || 0;
-            const importCount = planSummary.import?.length || 0;
-            const createCount = (planSummary.create?.length || 0) + recreateCount;
-            const deleteCount = (planSummary.delete?.length || 0) + recreateCount;
-
+            function isPlanSuccessful() {
+              let error = false;
+              let planSummary = null;
+              
+              if(process.env.PLAN_EXITCODE === "1"){
+                error = true;
+              } else {
+                try {
+                  planSummary = JSON.parse(process.env.PLAN_SUMMARY);
+                } catch(e){
+                  error = true;
+                  console.log("Error parsing plan summary:", e);
+                }  
+              }
+            
+              return { error, planSummary };
+            }
+            
             function formatResources(arr) {
               return arr?.length ? arr.join("\n") : "";
             }
-
-            const body = `
-            ### Terraform Plan Result
             
-            Terraform plan: ${importCount} to import, ${createCount} to add, ${updateCount} to change, ${deleteCount} to destroy.
+            const detailsUrl = `${context.serverUrl}/${context.payload.repository.full_name}/actions/runs/${context.runId}`;
+            let conclusion, title, summary, text, body;
             
-            Resources to delete:
-            \`\`\`
-            ${formatResources(planSummary.delete)}
-            \`\`\`
-            
-            Resources to create:
-            \`\`\`
-            ${formatResources(planSummary.create)}
-            \`\`\`
-            
-            Resources to update:
-            \`\`\`
-            ${formatResources(planSummary.update)}
-            \`\`\`
-            
-            Resources to import:
-            \`\`\`
-            ${formatResources(planSummary.import)}
-            \`\`\`
-            
-            Resources to recreate:
-            \`\`\`
-            ${formatResources(planSummary.recreate)}
-            \`\`\`
-            `.trim();
+            const { error, planSummary } = isPlanSuccessful();
+            if (error) {
+              conclusion = "failure";
+              title = "Terraform Plan Failed";
+              summary = `The Terraform plan did not complete successfully. Please check workflow logs for details: ${detailsUrl}`;
+              text = "Error running terraform plan";
+              body = `Error running terraform plan. Please check workflow logs for details: ${detailsUrl}`;
+            } else {
+              const recreateCount = planSummary.recreate?.length || 0;
+              const updateCount = planSummary.update?.length || 0;
+              const importCount = planSummary.import?.length || 0;
+              const createCount = (planSummary.create?.length || 0) + recreateCount;
+              const deleteCount = (planSummary.delete?.length || 0) + recreateCount;
               
+              body = `
+              ### Terraform Plan Result
+            
+              Terraform plan: ${importCount} to import, ${createCount} to add, ${updateCount} to change, ${deleteCount} to destroy.
+            
+              Resources to delete:
+              \`\`\`
+              ${formatResources(planSummary.delete)}
+              \`\`\`
+            
+              Resources to create:
+              \`\`\`
+              ${formatResources(planSummary.create)}
+              \`\`\`
+            
+              Resources to update:
+              \`\`\`
+              ${formatResources(planSummary.update)}
+              \`\`\`
+            
+              Resources to import:
+              \`\`\`
+              ${formatResources(planSummary.import)}
+              \`\`\`
+            
+              Resources to recreate:
+              \`\`\`
+              ${formatResources(planSummary.recreate)}
+              \`\`\`
+              `.trim();
+            
+              conclusion = "success";
+            
+              switch (process.env.PLAN_EXITCODE) {
+                case "0":      
+                  title = "Terraform Plan Succeeded (no changes)";
+                  summary = `Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${detailsUrl}`;
+                  text = "No infrastructure changes detected";
+                  break;
+                case "2":
+                  title = "Terraform Plan Succeeded (with changes)";
+                  summary = `Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${detailsUrl}`;
+                  text = body;
+                  if (text.length > 65535) {
+                    text = "Log output is too big. Please check the workflow logs for details.";
+                  }
+                  break;
+              }
+            }
+            
             const prNumber = process.env.PR_NUMBER;
             if (prNumber) {
               await github.rest.issues.createComment({
@@ -146,53 +193,11 @@ jobs:
               });
             }
             
-            return body;
-
-      - name: Finalize check-run
-        if: always()
-        uses: actions/github-script@v7
-        env:
-          PLAN_EXITCODE: ${{ steps.graformer.outputs.plan-exitcode }}
-          PLAN_SUMMARY: ${{ steps.generate-comment.outputs.result }}
-        with:
-          github-token: ${{ steps.generate-token.outputs.token }}
-          script: |
-            const planSummary = JSON.parse(process.env.PLAN_SUMMARY);
-            let conclusion = "failure";
-            let title = "Terraform Plan Failed";
-            const detailsUrl = `https://github.com/${context.payload.repository.full_name}/actions/runs/${context.runId}`;
-            let summary = `The Terraform plan did not complete successfully. Please check workflow logs for details: ${detailsUrl}`;
-            let text = "error running terraform plan";
-
-            switch (process.env.PLAN_EXITCODE) {
-              case "0":
-                conclusion = "success";
-                title = "Terraform Plan Succeeded (no changes)";
-                summary = `Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${detailsUrl}`;
-                text = "No infrastructure changes detected";
-                break;
-              case "2":
-                conclusion = "success";
-                title = "Terraform Plan Succeeded (with changes)";
-                summary = `Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${detailsUrl}`;
-                text = planSummary;
-                if (text.length > 65535) {
-                  text = "Log output is too big. Please check the workflow logs for details.";
-                }
-                break;
-              case "1":
-                conclusion = "failure";
-                title = "Terraform Plan Failed";
-                summary = `Terraform plan failed during execution. Please check workflow logs for details: ${detailsUrl}`;
-                text = "error running terraform plan";
-                break;
-            }
-
             await github.rest.checks.create({
               owner: context.payload.repository.owner.login,
               repo: context.payload.repository.name,
               name: "Terraform plan",
-              head_sha: context.payload.workflow_run.head_sha,
+              head_sha: process.env.COMMIT_SHA,
               status: "completed",
               conclusion: conclusion,
               details_url: detailsUrl,
