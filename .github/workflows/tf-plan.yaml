@@ -132,37 +132,65 @@ jobs:
               const importCount = planSummary.import?.length || 0;
               const createCount = (planSummary.create?.length || 0) + recreateCount;
               const deleteCount = (planSummary.delete?.length || 0) + recreateCount;
-              
+            
+              // build body dynamically. indentation inside if statements is important because if text is indented as it should be (4 spaces), it will be rendered as code block in markdown
               body = `
               ### Terraform Plan Result
-            
+              
               Terraform plan: ${importCount} to import, ${createCount} to add, ${updateCount} to change, ${deleteCount} to destroy.
+              `;
+                
+              if (deleteCount > 0) {
+              body += `
             
               Resources to delete:
               \`\`\`
-              ${formatResources(planSummary.delete)}
+              ${formatResources(planSummary?.delete)}
               \`\`\`
+              `;
+              }
+                
+              if (createCount > 0) {
+              body += `
             
               Resources to create:
               \`\`\`
-              ${formatResources(planSummary.create)}
+              ${formatResources(planSummary?.create)}
               \`\`\`
+              `;
+              }
+                
+              if (updateCount > 0) {
+              body += `
             
               Resources to update:
               \`\`\`
-              ${formatResources(planSummary.update)}
+              ${formatResources(planSummary?.update)}
               \`\`\`
+              `;
+              }
+                
+              if (importCount > 0) {
+              body += `
             
               Resources to import:
               \`\`\`
-              ${formatResources(planSummary.import)}
+              ${formatResources(planSummary?.import)}
               \`\`\`
+              `;
+              }
+                
+              if (recreateCount > 0) {
+              body += `
             
               Resources to recreate:
               \`\`\`
-              ${formatResources(planSummary.recreate)}
+              ${formatResources(planSummary?.recreate)}
               \`\`\`
-              `.trim();
+              `;
+              }
+              
+              body = body.trim();
             
               conclusion = "success";
             
