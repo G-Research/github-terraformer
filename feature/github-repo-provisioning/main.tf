@@ -20,11 +20,11 @@ locals {
   )
   new_repos = merge(
     {
-      for file_path in fileset(path.module, "gcss_config/*.yaml") :
+      for file_path in fileset(path.module, "gcss_config/repos/*.yaml") :
       split(".yaml", basename(file_path))[0] => yamldecode(file(file_path))
     },
     {
-      for file_path in fileset(path.module, "gcss_config/*.yml") :
+      for file_path in fileset(path.module, "gcss_config/repos/*.yml") :
       split(".yml", basename(file_path))[0] => yamldecode(file(file_path))
     }
   )

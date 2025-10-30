@@ -84,7 +84,7 @@ jobs:
         working-directory: feature/github-repo-provisioning/gcss_config
         run: |
           src="importer_tmp_dir"
-          dst="."
+          dst="repos"
         
           if [[ -d "$src" ]]; then
             echo "Promoting configs from $src to $dst"

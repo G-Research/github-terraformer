@@ -65,7 +65,7 @@ jobs:
         with:
           working-directory: feature/github-repo-importer
           source-directory: "../github-repo-provisioning/gcss_config/importer_tmp_dir/"
-          target-directory: "../github-repo-provisioning/gcss_config/"
+          target-directory: "../github-repo-provisioning/gcss_config/repos/"
 
       - name: Create Pull Request
         uses: ./.github/actions/pr-bot
