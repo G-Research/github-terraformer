@@ -70,7 +70,7 @@ runs:
         terraform show --json tfplan 2>/dev/null | jq -e '{
           resource_changes: [(.resource_changes // [])[]],
           data: [(.prior_state.values.root_module.resources // [])[] | select(.mode == "data" and .type == "github_team")]
-        }' > tfplan.json || echo '{"resource_changes":[],"data":[]}' > tfplan.json
+        }' > tfplan.json
         rm -f tfplan
 
     - name: Inspect plan result
