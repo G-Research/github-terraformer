@@ -5,8 +5,8 @@ terraform {
 
   required_providers {
     github = {
-      source = "app.terraform.io/GR-OSS/github"
-      version = "6.5.0"
+      source = "G-Research/github"
+      version = "6.5.0-gr.2"
     }
   }
 }
