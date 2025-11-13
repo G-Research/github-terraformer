@@ -46,4 +46,8 @@ const (
 	BypassActorRoleName_OrganizationAdminRole = "organization-admin-role"
 	BypassActorRoleName_MaintainRole          = "maintain-role"
 	BypassActorRoleName_WriteRole             = "write-role"
+
+	RequiredCheckAnySource             = "Any source"
+	RequiredCheckGitHubActionsSource   = "GitHub Actions"
+	RequiredCheckGithubActionsSourceId = 15368
 )

@@ -216,7 +216,9 @@ Options for configuring a required status check.
 
 - **`context`**: *(required, string)* The context of the status check.
 
-- **`integration_id`**: *(optional, integer)* The ID of the integration.
+- **`integration_id`**: *(optional, integer)* The ID of the integration. Must be set if `source` is not set.
+
+- **`source`**: *(optional, string)* Name of required check source. Must be set if `integration_id` is not set.
 
 ## Required Code Scanning Configuration
 

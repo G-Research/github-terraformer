@@ -55,7 +55,8 @@ type RequiredStatusChecks struct {
 
 type RequiredCheck struct {
 	Context       string `yaml:"context" json:"context"`
-	IntegrationID *int   `yaml:"integration_id,omitempty" json:"integration_id"`
+	IntegrationID *int   `yaml:"integration_id" json:"integration_id"`
+	Source        string `yaml:"source"`
 }
 
 type RequiredCodeScanning struct {

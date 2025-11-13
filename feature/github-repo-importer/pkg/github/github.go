@@ -384,7 +384,7 @@ func resolveRulesets(githubRulesets []github.Ruleset, roleActors map[int64]strin
 	var rulesets []Ruleset
 
 	for _, githubRuleset := range githubRulesets {
-		rules, err := convertRules(githubRuleset.Rules)
+		rules, err := convertRules(githubRuleset.Rules, appActors)
 		if err != nil {
 			return nil, fmt.Errorf("error occured while converting rules: %w", err)
 		}
@@ -403,7 +403,7 @@ func resolveRulesets(githubRulesets []github.Ruleset, roleActors map[int64]strin
 	return rulesets, nil
 }
 
-func convertRules(ghRules []*github.RepositoryRule) (*Rule, error) {
+func convertRules(ghRules []*github.RepositoryRule, appActors map[int64]string) (*Rule, error) {
 	if len(ghRules) == 0 {
 		return nil, nil
 	}
@@ -423,7 +423,7 @@ func convertRules(ghRules []*github.RepositoryRule) (*Rule, error) {
 			rules.PullRequest = prr
 
 		case RuleTypeRequiredStatusChecks:
-			statusChecks, err := convertRequiredStatusChecks(r.Parameters)
+			statusChecks, err := convertRequiredStatusChecks(r.Parameters, appActors)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert required status checks %v: %v", r.Parameters, err)
 			}
@@ -553,7 +553,7 @@ func convertRequiredDeployments(rd *json.RawMessage) (*RequiredDeployments, erro
 	return &rule, nil
 }
 
-func convertRequiredStatusChecks(rsc *json.RawMessage) (*RequiredStatusChecks, error) {
+func convertRequiredStatusChecks(rsc *json.RawMessage, appActors map[int64]string) (*RequiredStatusChecks, error) {
 	if rsc == nil {
 		return nil, nil
 	}
@@ -563,6 +563,18 @@ func convertRequiredStatusChecks(rsc *json.RawMessage) (*RequiredStatusChecks, e
 	err := json.Unmarshal(*rsc, &rule)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to unmarshal required status checks: %v\n", err)
+	}
+
+	for i := range rule.RequiredCheck {
+		rc := &rule.RequiredCheck[i]
+
+		if rc.IntegrationID == nil {
+			rc.Source = RequiredCheckAnySource
+		} else if *rc.IntegrationID == RequiredCheckGithubActionsSourceId {
+			rc.Source = RequiredCheckGitHubActionsSource
+		} else {
+			rc.Source = appActors[int64(*rc.IntegrationID)]
+		}
 	}
 	return &rule, nil
 }
