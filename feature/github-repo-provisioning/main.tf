@@ -479,7 +479,7 @@ resource "github_repository_ruleset" "ruleset" {
           for_each = try(required_status_checks.value.required_check, [])
           content {
             context       = required_check.value.context
-            integration_id = (!startswith(required_check.value.source, "app/") ? local.builtin_github_sources[required_check.value.source] : data.github_app.app[required_check.value.source].node_id)
+            integration_id = (startswith(required_check.value.source, "app/") ? local.apps_map[required_check.value.source].app_id : local.builtin_github_sources[required_check.value.source])
           }
         }
       }
