@@ -484,7 +484,7 @@ resource "github_repository_ruleset" "ruleset" {
               (
                 !startswith(required_check.value.source, "app/") ?
                 local.builtin_github_sources[required_check.value.source] :
-                data.github_app.app[required_check.value.source].node_id
+                local.apps_map[required_check.value.source].app_id
               ) :
               required_check.value.integration_id
             )
