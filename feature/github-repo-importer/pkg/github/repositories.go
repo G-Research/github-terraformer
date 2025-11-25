@@ -4,9 +4,9 @@ type Repository struct {
 	Name                       string                `yaml:"-"`
 	Owner                      string                `yaml:"-"`
 	Description                *string               `yaml:"description,omitempty"`
-	Visibility                 string                `yaml:"visibility,omitempty"`
+	Visibility                 string                `yaml:"visibility,omitempty" jsonschema:"enum=public,enum=private"`
 	HomepageURL                *string               `yaml:"homepage_url,omitempty"`
-	DefaultBranch              string                `yaml:"default_branch,omitempty"`
+	DefaultBranch              string                `yaml:"default_branch,omitempty" jsonschema:"required"`
 	HasIssues                  *bool                 `yaml:"has_issues,omitempty"`
 	HasProjects                *bool                 `yaml:"has_projects,omitempty"`
 	HasWiki                    *bool                 `yaml:"has_wiki,omitempty"`
@@ -16,10 +16,10 @@ type Repository struct {
 	AllowSquashMerge           *bool                 `yaml:"allow_squash_merge,omitempty"`
 	AllowAutoMerge             *bool                 `yaml:"allow_auto_merge,omitempty"`
 	AllowUpdateBranch          *bool                 `yaml:"allow_update_branch,omitempty"`
-	SquashMergeCommitTitle     *string               `yaml:"squash_merge_commit_title,omitempty"`
-	SquashMergeCommitMessage   *string               `yaml:"squash_merge_commit_message,omitempty"`
-	MergeCommitTitle           *string               `yaml:"merge_commit_title,omitempty"`
-	MergeCommitMessage         *string               `yaml:"merge_commit_message,omitempty"`
+	SquashMergeCommitTitle     *string               `yaml:"squash_merge_commit_title,omitempty" jsonschema:"enum=PR_TITLE,enum=COMMIT_OR_PR_TITLE"`
+	SquashMergeCommitMessage   *string               `yaml:"squash_merge_commit_message,omitempty" jsonschema:"enum=PR_BODY,enum=COMMIT_MESSAGES,enum=BLANK"`
+	MergeCommitTitle           *string               `yaml:"merge_commit_title,omitempty" jsonschema:"enum=PR_TITLE,enum=MERGE_MESSAGE"`
+	MergeCommitMessage         *string               `yaml:"merge_commit_message,omitempty" jsonschema:"enum=PR_BODY,enum=PR_TITLE,enum=BLANK"`
 	WebCommitSignoffRequired   *bool                 `yaml:"web_commit_signoff_required,omitempty"`
 	DeleteBranchOnMerge        *bool                 `yaml:"delete_branch_on_merge,omitempty"`
 	IsTemplate                 *bool                 `yaml:"is_template,omitempty"`
@@ -46,13 +46,13 @@ type Repository struct {
 }
 
 type RepositoryTemplate struct {
-	Owner      string `yaml:"owner,omitempty"`
-	Repository string `yaml:"repository,omitempty"`
+	Owner      string `yaml:"owner,omitempty" jsonschema:"required"`
+	Repository string `yaml:"repository,omitempty" jsonschema:"required"`
 }
 
 type Pages struct {
 	CNAME     *string `yaml:"cname,omitempty"`
-	Branch    *string `yaml:"branch,omitempty"`
+	Branch    *string `yaml:"branch,omitempty" jsonschema:"required"`
 	Path      *string `yaml:"path,omitempty"`
-	BuildType *string `yaml:"build_type,omitempty"`
+	BuildType *string `yaml:"build_type,omitempty" jsonschema:"required,enum=workflow,enum=legacy"`
 }

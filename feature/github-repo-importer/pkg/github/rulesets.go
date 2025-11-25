@@ -1,11 +1,11 @@
 package github
 
 type Ruleset struct {
-	ID           int64         `yaml:"id"`
-	Enforcement  string        `yaml:"enforcement"`
+	ID           int64         `yaml:"id" jsonschema:"-"`
+	Enforcement  string        `yaml:"enforcement" jsonschema:"enum=disabled,enum=active,enum=evaluate"`
 	Name         string        `yaml:"name"`
 	Rules        *Rule         `yaml:"rules"`
-	Target       string        `yaml:"target"`
+	Target       string        `yaml:"target" jsonschema:"enum=branch,enum=tag"`
 	BypassActors []BypassActor `yaml:"bypass_actors,omitempty"`
 	Conditions   *Conditions   `yaml:"conditions,omitempty"`
 }
@@ -30,7 +30,7 @@ type Rule struct {
 }
 
 type PatternRule struct {
-	Operator string  `yaml:"operator"`
+	Operator string  `yaml:"operator" jsonschema:"enum=starts_with,enum=ends_with,enum=contains,enum=regex"`
 	Pattern  string  `yaml:"pattern"`
 	Name     *string `yaml:"name,omitempty"`
 	Negate   *bool   `yaml:"negate,omitempty"`
@@ -45,11 +45,11 @@ type PullRequestRule struct {
 }
 
 type RequiredDeployments struct {
-	RequiredDeploymentEnvironments []string `yaml:"required_deployment_environments,omitempty" json:"required_deployment_environments"`
+	RequiredDeploymentEnvironments []string `yaml:"required_deployment_environments,omitempty" json:"required_deployment_environments" jsonschema:"minItems=1,required"`
 }
 
 type RequiredStatusChecks struct {
-	RequiredCheck                    []RequiredCheck `yaml:"required_check" json:"required_status_checks"`
+	RequiredCheck                    []RequiredCheck `yaml:"required_check" json:"required_status_checks" jsonschema:"minItems=1,required"`
 	StrictRequiredStatusChecksPolicy *bool           `yaml:"strict_required_status_checks_policy,omitempty" json:"strict_required_status_checks_policy"`
 }
 
@@ -60,25 +60,25 @@ type RequiredCheck struct {
 }
 
 type RequiredCodeScanning struct {
-	RequiredCodeScanningTool []RequiredCodeScanningTool `yaml:"required_code_scanning_tool,omitempty" json:"code_scanning_tools"`
+	RequiredCodeScanningTool []RequiredCodeScanningTool `yaml:"required_code_scanning_tool,omitempty" json:"code_scanning_tools" jsonschema:"minItems=1,required"`
 }
 
 type RequiredCodeScanningTool struct {
-	AlertsThreshold         string `yaml:"alerts_threshold,omitempty" json:"alerts_threshold"`
-	SecurityAlertsThreshold string `yaml:"security_alerts_threshold,omitempty" json:"security_alerts_threshold"`
-	Tool                    string `yaml:"tool,omitempty" json:"tool"`
+	AlertsThreshold         string `yaml:"alerts_threshold,omitempty" json:"alerts_threshold" jsonschema:"required,enum=none,enum=errors,enum=errors_and_warnings,enum=all"`
+	SecurityAlertsThreshold string `yaml:"security_alerts_threshold,omitempty" json:"security_alerts_threshold" jsonschema:"required,enum=none,enum=critical,enum=high_or_higher,enum=medium_or_higher,enum=all"`
+	Tool                    string `yaml:"tool,omitempty" json:"tool" jsonschema:"required"`
 }
 
 type BypassActor struct {
 	Name       string  `yaml:"name"`
-	BypassMode *string `yaml:"bypass_mode,omitempty"`
+	BypassMode *string `yaml:"bypass_mode,omitempty" jsonschema:"enum=always,enum=pull_request"`
 }
 
 type Conditions struct {
-	RefName RefNameCondition `yaml:"ref_name,omitempty"`
+	RefName RefNameCondition `yaml:"ref_name,omitempty" jsonschema:"required"`
 }
 
 type RefNameCondition struct {
-	Exclude []string `yaml:"exclude,omitempty"`
-	Include []string `yaml:"include,omitempty"`
+	Exclude []string `yaml:"exclude,omitempty" jsonschema:"minItems=1,required"`
+	Include []string `yaml:"include,omitempty" jsonschema:"minItems=1,required"`
 }

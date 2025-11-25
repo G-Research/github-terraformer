@@ -9,7 +9,6 @@ type BranchProtectionV4 struct {
 	AllowsDeletions               *bool                       `yaml:"allows_deletions,omitempty"`
 	AllowsForcePushes             *bool                       `yaml:"allows_force_pushes,omitempty"`
 	ForcePushAllowances           []string                    `yaml:"force_push_bypassers,omitempty"`
-	AllowsCreations               *bool                       `yaml:"allows_creations,omitempty"`
 	BlocksCreations               *bool                       `yaml:"blocks_creations,omitempty"`
 	EnforceAdmins                 *bool                       `yaml:"enforce_admins,omitempty"`
 	PushRestrictions              []string                    `yaml:"push_restrictions,omitempty"`
@@ -23,7 +22,7 @@ type BranchProtectionV4 struct {
 }
 
 type RequiredPullRequestReviews struct {
-	RequiredApprovingReviewCount *int     `yaml:"required_approving_review_count,omitempty"`
+	RequiredApprovingReviewCount *int     `yaml:"required_approving_review_count,omitempty" jsonschema:"minimum=0,maximum=6"`
 	DismissStaleReviews          *bool    `yaml:"dismiss_stale_reviews,omitempty"`
 	RequireCodeOwnerReviews      *bool    `yaml:"require_code_owner_reviews,omitempty"`
 	DismissalRestrictions        []string `yaml:"dismissal_restrictions,omitempty"` // reviewDismissalAllowances

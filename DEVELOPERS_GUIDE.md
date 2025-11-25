@@ -14,7 +14,7 @@ These are the primary configuration options for each repository.
 
 - **`description`**: *(optional, string)* A brief description of the repository.
 
-- **`visibility`**: *(optional, enum)* Defines the visibility of the repository. Possible values:
+- **`visibility`**: *(optional, string)* Defines the visibility of the repository. Possible values:
   - `public`
   - `private`
 
@@ -38,13 +38,23 @@ These are the primary configuration options for each repository.
 
 - **`allow_update_branch`**: *(optional, boolean)* If `true`, contributors can update the branch from the default.
 
-- **`squash_merge_commit_title`**: *(optional, string)* Defines the default title for squash merge commits.
+- **`squash_merge_commit_title`**: *(optional, string)* Defines the default title for squash merge commits. If `allow_squash_merge` is set to true, than this is set to one of:
+  - `PR_TITLE`
+  - `COMMIT_OR_PR_TITLE`
 
-- **`squash_merge_commit_message`**: *(optional, string)* Defines the default commit message for squash merges.
+- **`squash_merge_commit_message`**: *(optional, string)* Defines the default commit message for squash merges. If `allow_squash_merge` is set to true, than this is set to one of:
+  - `PR_BODY`
+  - `COMMIT_MESSAGES`
+  - `BLANK`
 
-- **`merge_commit_title`**: *(optional, string)* Defines the default title for merge commits.
+- **`merge_commit_title`**: *(optional, string)* Defines the default title for merge commits. If `allow_merge_commit` is set to true, than this is set to one of:
+  - `PR_TITLE`
+  - `MERGE_MESSAGE`
 
-- **`merge_commit_message`**: *(optional, string)* Defines the default message for merge commits.
+- **`merge_commit_message`**: *(optional, string)* Defines the default message for merge commits. If `allow_merge_commit` is set to true, than this is set to one of:
+  - `PR_BODY`
+  - `PR_TITLE`
+  - `BLANK`
 
 - **`web_commit_signoff_required`**: *(optional, boolean)* If `true`, commit signoff is required for web-based commits.
 
@@ -78,9 +88,9 @@ These are the primary configuration options for each repository.
 
 - **`admin_teams`**: *(optional, string[])* A list of teams with admin access to the repository.
 
-- **`license_template`**: *(optional, string)* The license template to use for the repository.
+- **`license_template`**: *(optional, string)* The license template to use for the repository. Use the [name of the template](https://github.com/github/choosealicense.com/tree/gh-pages/_licenses) without the extension. For example, "mit" or "mpl-2.0".
 
-- **`gitignore_template`**: *(optional, string)* The gitignore template to use for the repository.
+- **`gitignore_template`**: *(optional, string)* The gitignore template to use for the repository. Use the [name of the template](https://github.com/github/gitignore) without the extension. For example, "Haskel"
 
 - **`template`**: *(optional, object [RepositoryTemplate](#template-configuration))* Configuration for creating a repository from a template.
 
@@ -110,7 +120,7 @@ Options for configuring GitHub Pages.
 
 - **`path`**: *(optional, string)* The directory path for GitHub Pages content.
 
-- **`build_type`**: *(required, enum)* The build type for GitHub Pages. Possible values:
+- **`build_type`**: *(required, string)* The build type for GitHub Pages. Possible values:
   - `workflow` - For deploying pages by Github Actions workflow
   - `legacy` - For manual deployment using the `gh-pages` branch
 
@@ -118,9 +128,10 @@ Options for configuring GitHub Pages.
 
 Options for configuring repository rulesets.
 
-- **`id`**: *(optional, string)* The ID of the ruleset. ID is mainly present in the imported repository configuration. You would not use it when creating a new ruleset.
-
-- **`enforcement`**: *(required, string)* The enforcement level of the ruleset.
+- **`enforcement`**: *(required, string)* The enforcement level of the ruleset. One of:
+  - `disabled`
+  - `active`
+  - `evaluate` - currently only supported for owners of type organization
 
 - **`name`**: *(required, string)* The name of the ruleset.
 
@@ -138,13 +149,15 @@ Options for configuring repository rulesets.
 
 Options for configuring rules within a ruleset.
 
-- **`branch_name_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for branch names.
+- **`branch_name_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for branch names. Conflicts with `tag_name_pattern`. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations.
 
-- **`commit_author_email_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for commit author emails.
+- **`tag_name_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for tag names. Conflicts with `branch_name_pattern`. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations.
 
-- **`commit_message_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for commit messages.
+- **`commit_author_email_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for commit author emails. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations.
 
-- **`committer_email_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for committer emails.
+- **`commit_message_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for commit messages. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations.
+
+- **`committer_email_pattern`**: *(optional, object [PatternRule](#pattern-rule-configuration))* Pattern rule for committer emails. This rule only applies to repositories within an enterprise, it cannot be applied to repositories owned by individuals or regular organizations.
 
 - **`creation`**: *(optional, boolean)* If `true`, creation is allowed or required.
 
@@ -174,7 +187,11 @@ Options for configuring rules within a ruleset.
 
 Options for configuring pattern rules.
 
-- **`operator`**: *(required, string)* The operator for the pattern rule.
+- **`operator`**: *(required, string)* The operator for the pattern rule. One of:
+  - `starts_with`
+  - `ends_with`
+  - `contains`
+  - `regex`
 
 - **`pattern`**: *(required, string)* The pattern to match.
 
@@ -200,13 +217,13 @@ Options for configuring pull request rules.
 
 Options for configuring required deployments.
 
-- **`required_deployment_environments`**: *(required, string[])* A list of required deployment environments.
+- **`required_deployment_environments`**: *(required, string[], `minItems=1)* A list of required deployment environments.
 
 ## Required Status Checks Configuration
 
 Options for configuring required status checks.
 
-- **`required_check`**: *(required, object[] [RequiredCheck](#required-check-configuration))* A list of required status checks.
+- **`required_check`**: *(required, object[] [RequiredCheck](#required-check-configuration), `minItems=1`)* A list of required status checks.
 
 - **`strict_required_status_checks_policy`**: *(optional, boolean)* If `true`, strict status check policy is enforced.
 
@@ -216,21 +233,30 @@ Options for configuring a required status check.
 
 - **`context`**: *(required, string)* The context of the status check.
 
-- **`source`**: *(required, string)* Name of required check source.
+- **`source`**: *(required, string)* Name of required check source. Usually an integration (Github app) name. Format `app/<app-owner>/<app-slug>`, both can be obtained from `app-list.yaml`
 
 ## Required Code Scanning Configuration
 
 Options for configuring required code scanning.
 
-- **`required_code_scanning_tool`**: *(required, object[] [RequiredCodeScanningTool](#required-code-scanning-tool-configuration))* A list of required code scanning tools.
+- **`required_code_scanning_tool`**: *(required, object[] [RequiredCodeScanningTool](#required-code-scanning-tool-configuration), `minItems=1`)* A list of required code scanning tools.
 
 ## Required Code Scanning Tool Configuration
 
 Options for configuring a required code scanning tool.
 
-- **`alerts_threshold`**: *(required, integer)* The threshold for alerts.
+- **`alerts_threshold`**: *(required, string)* The threshold for alerts. One of:
+  - `none`
+  - `errors`
+  - `errors_and_warnings`
+  - `all`
 
-- **`security_alerts_threshold`**: *(required, integer)* The threshold for security alerts.
+- **`security_alerts_threshold`**: *(required, string)* The threshold for security alerts. One ofL
+  - `none`
+  - `critical`
+  - `high_or_higher`
+  - `medium_or_higher`
+  - `all`
 
 - **`tool`**: *(optional, string)* The name of the code scanning tool.
 
@@ -238,25 +264,15 @@ Options for configuring a required code scanning tool.
 
 Options for configuring actors that can bypass rules.
 
-- **`actor_id`**: *(required, integer)* The ID of the actor. If `actor_type` is a Github App, then this is the Github App ID. Check how to [obtain Github App ID](https://docs.github.com/en/rest/apps/apps?apiVersion=2022-11-28#get-an-app).
-
-- **`actor_type`**: *(required, enum)* The type of the actor. One of:
-  - `RepositoryRole`
-  - `Team`
-  - `Integration`
-  - `OrganizationAdmin`
+- **`name`**: *(required, string)* The name of the actor. Can be an actor role, a team or an integration (Github app). Teams should be prefixed with `team/<team-slug>`. Apps are prefixed with `app/<app-owner>/<app-slug>`. If an actor role, then of:
+  - `repository-admin-role`
+  - `organization-admin-role`
+  - `maintain-role`
+  - `write-role`
 
 - **`bypass_mode`**: *(optional, enum)* The bypass mode for the actor. One of:
   - `always`
   - `pull_request`
-
-> [!NOTE]
-> at the time of writing this, the following actor types correspond to the following actor IDs:
-> - OrganizationAdmin: 1
-> - RepositoryRole (This is the actor type, the following are the base repository roles and their associated IDs.):
-    >  - maintain: 2
->  - write: 4
->  - admin: 5
 
 ## Conditions Configuration
 
@@ -268,9 +284,9 @@ Options for configuring conditions for rulesets.
 
 Options for configuring reference name conditions.
 
-- **`exclude`**: *(required, string[])* A list of reference names to exclude.
+- **`exclude`**: *(required, string[], `minItems=1`)* A list of reference names to exclude.
 
-- **`include`**: *(required, string[])* A list of reference names to include. Also accepts `~DEFAULT_BRANCH` to include the default branch or `~ALL` to include all branches.
+- **`include`**: *(required, string[], `minItems=1`)* A list of reference names to include. Also accepts `~DEFAULT_BRANCH` to include the default branch or `~ALL` to include all branches.
 
 ## Branch Protection Configuration (V4)
 
@@ -280,11 +296,9 @@ Options for configuring branch protection rules.
 
 - **`allows_deletions`**: *(optional, boolean)* If `true`, branch deletion is allowed.
 
-- **`allows_force_pushes`**: *(optional, boolean)* If `true`, force pushes are allowed.
+- **`allows_force_pushes`**: *(optional, boolean)* If `true`, force pushes are allowed. Set to `false` if `force_push_bypassers` is set.
 
-- **`force_push_bypassers`**: *(optional, string[])* A list of users or teams allowed to force push.
-
-- **`allows_creations`**: *(optional, boolean)* If `true`, branch creation is allowed.
+- **`force_push_bypassers`**: *(optional, string[])* A list of users or teams allowed to force push. If set, then `allows_force_pushes` must be set to `false`.
 
 - **`blocks_creations`**: *(optional, boolean)* If `true`, branch creation is blocked.
 
@@ -310,7 +324,7 @@ Options for configuring branch protection rules.
 
 Options for configuring required pull request reviews.
 
-- **`required_approving_review_count`**: *(optional, integer)* The number of required approving reviews.
+- **`required_approving_review_count`**: *(optional, integer)* The number of required approving reviews. Must be between 0 and 6
 
 - **`dismiss_stale_reviews`**: *(optional, boolean)* If `true`, stale reviews are dismissed.
 

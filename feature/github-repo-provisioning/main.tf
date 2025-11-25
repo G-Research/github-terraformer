@@ -431,6 +431,17 @@ resource "github_repository_ruleset" "ruleset" {
       }
     }
 
+    dynamic "tag_name_pattern" {
+      for_each = try(each.value.ruleset.rules.tag_name_pattern, null) != null ? [each.value.ruleset.rules.tag_name_pattern] : []
+
+      content {
+        name     = try(each.value.ruleset.rules.tag_name_pattern.name, null)
+        operator = each.value.ruleset.rules.tag_name_pattern.operator
+        pattern  = each.value.ruleset.rules.tag_name_pattern.pattern
+        negate   = try(each.value.ruleset.rules.tag_name_pattern.negate, null)
+      }
+    }
+
     dynamic "commit_author_email_pattern" {
       for_each = try(each.value.ruleset.rules.commit_author_email_pattern, null) != null ? [each.value.ruleset.rules.commit_author_email_pattern] : []
 

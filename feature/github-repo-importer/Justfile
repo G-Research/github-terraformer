@@ -15,3 +15,6 @@ test:
 
 compare dirA dirB:
   go run main.go compare {{dirA}} {{dirB}}
+
+generate-schema:
+  go run main.go schema

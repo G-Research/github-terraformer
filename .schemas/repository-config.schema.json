@@ -1,0 +1,726 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/.schemas/repository-config.schema.json",
+  "$ref": "#/$defs/Repository",
+  "$defs": {
+    "BranchProtectionV4": {
+      "properties": {
+        "pattern": {
+          "type": "string"
+        },
+        "allows_deletions": {
+          "type": "boolean"
+        },
+        "allows_force_pushes": {
+          "type": "boolean"
+        },
+        "force_push_bypassers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "blocks_creations": {
+          "type": "boolean"
+        },
+        "enforce_admins": {
+          "type": "boolean"
+        },
+        "push_restrictions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "require_conversation_resolution": {
+          "type": "boolean"
+        },
+        "require_signed_commits": {
+          "type": "boolean"
+        },
+        "required_linear_history": {
+          "type": "boolean"
+        },
+        "required_pull_request_reviews": {
+          "$ref": "#/$defs/RequiredPullRequestReviews"
+        },
+        "required_status_checks": {
+          "$ref": "#/$defs/RequiredStatusChecksV4"
+        },
+        "restricts_pushes": {
+          "type": "boolean"
+        },
+        "lock_branch": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "pattern"
+      ]
+    },
+    "BypassActor": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "bypass_mode": {
+          "type": "string",
+          "enum": [
+            "always",
+            "pull_request"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "Conditions": {
+      "properties": {
+        "ref_name": {
+          "$ref": "#/$defs/RefNameCondition"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ref_name"
+      ]
+    },
+    "Pages": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "build_type": {
+                "const": "legacy"
+              }
+            },
+            "required": [
+              "build_type"
+            ]
+          },
+          "then": {
+            "required": [
+              "branch"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "cname": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "build_type": {
+          "type": "string",
+          "enum": [
+            "workflow",
+            "legacy"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "branch",
+        "build_type"
+      ]
+    },
+    "PatternRule": {
+      "properties": {
+        "operator": {
+          "type": "string",
+          "enum": [
+            "starts_with",
+            "ends_with",
+            "contains",
+            "regex"
+          ]
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "negate": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "operator",
+        "pattern"
+      ]
+    },
+    "PullRequestRule": {
+      "properties": {
+        "dismiss_stale_reviews_on_push": {
+          "type": "boolean"
+        },
+        "require_code_owner_review": {
+          "type": "boolean"
+        },
+        "require_last_push_approval": {
+          "type": "boolean"
+        },
+        "required_approving_review_count": {
+          "type": "integer"
+        },
+        "required_review_thread_resolution": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RefNameCondition": {
+      "properties": {
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "exclude",
+        "include"
+      ]
+    },
+    "Repository": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "public",
+            "private"
+          ]
+        },
+        "homepage_url": {
+          "type": "string"
+        },
+        "default_branch": {
+          "type": "string"
+        },
+        "has_issues": {
+          "type": "boolean"
+        },
+        "has_projects": {
+          "type": "boolean"
+        },
+        "has_wiki": {
+          "type": "boolean"
+        },
+        "has_downloads": {
+          "type": "boolean"
+        },
+        "allow_merge_commit": {
+          "type": "boolean"
+        },
+        "allow_rebase_merge": {
+          "type": "boolean"
+        },
+        "allow_squash_merge": {
+          "type": "boolean"
+        },
+        "allow_auto_merge": {
+          "type": "boolean"
+        },
+        "allow_update_branch": {
+          "type": "boolean"
+        },
+        "squash_merge_commit_title": {
+          "type": "string",
+          "enum": [
+            "PR_TITLE",
+            "COMMIT_OR_PR_TITLE"
+          ]
+        },
+        "squash_merge_commit_message": {
+          "type": "string",
+          "enum": [
+            "PR_BODY",
+            "COMMIT_MESSAGES",
+            "BLANK"
+          ]
+        },
+        "merge_commit_title": {
+          "type": "string",
+          "enum": [
+            "PR_TITLE",
+            "MERGE_MESSAGE"
+          ]
+        },
+        "merge_commit_message": {
+          "type": "string",
+          "enum": [
+            "PR_BODY",
+            "PR_TITLE",
+            "BLANK"
+          ]
+        },
+        "web_commit_signoff_required": {
+          "type": "boolean"
+        },
+        "delete_branch_on_merge": {
+          "type": "boolean"
+        },
+        "is_template": {
+          "type": "boolean"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "has_discussions": {
+          "type": "boolean"
+        },
+        "topics": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pull_collaborators": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "triage_collaborators": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "push_collaborators": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maintain_collaborators": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "admin_collaborators": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pull_teams": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "triage_teams": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "push_teams": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maintain_teams": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "admin_teams": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "license_template": {
+          "type": "string"
+        },
+        "gitignore_template": {
+          "type": "string"
+        },
+        "template": {
+          "$ref": "#/$defs/RepositoryTemplate"
+        },
+        "pages": {
+          "$ref": "#/$defs/Pages"
+        },
+        "rulesets": {
+          "items": {
+            "$ref": "#/$defs/Ruleset"
+          },
+          "type": "array"
+        },
+        "vulnerability_alerts_enabled": {
+          "type": "boolean"
+        },
+        "branch_protections_v4": {
+          "items": {
+            "$ref": "#/$defs/BranchProtectionV4"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "default_branch"
+      ]
+    },
+    "RepositoryTemplate": {
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "owner",
+        "repository"
+      ]
+    },
+    "RequiredCheck": {
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "context",
+        "source"
+      ]
+    },
+    "RequiredCodeScanning": {
+      "properties": {
+        "required_code_scanning_tool": {
+          "items": {
+            "$ref": "#/$defs/RequiredCodeScanningTool"
+          },
+          "type": "array",
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "required_code_scanning_tool"
+      ]
+    },
+    "RequiredCodeScanningTool": {
+      "properties": {
+        "alerts_threshold": {
+          "type": "string",
+          "enum": [
+            "none",
+            "errors",
+            "errors_and_warnings",
+            "all"
+          ]
+        },
+        "security_alerts_threshold": {
+          "type": "string",
+          "enum": [
+            "none",
+            "critical",
+            "high_or_higher",
+            "medium_or_higher",
+            "all"
+          ]
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "alerts_threshold",
+        "security_alerts_threshold",
+        "tool"
+      ]
+    },
+    "RequiredDeployments": {
+      "properties": {
+        "required_deployment_environments": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "required_deployment_environments"
+      ]
+    },
+    "RequiredPullRequestReviews": {
+      "properties": {
+        "required_approving_review_count": {
+          "type": "integer",
+          "maximum": 6,
+          "minimum": 0
+        },
+        "dismiss_stale_reviews": {
+          "type": "boolean"
+        },
+        "require_code_owner_reviews": {
+          "type": "boolean"
+        },
+        "dismissal_restrictions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "restrict_dismissals": {
+          "type": "boolean"
+        },
+        "pull_request_bypassers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "require_last_push_approval": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RequiredStatusChecks": {
+      "properties": {
+        "required_check": {
+          "items": {
+            "$ref": "#/$defs/RequiredCheck"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "strict_required_status_checks_policy": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "required_check"
+      ]
+    },
+    "RequiredStatusChecksV4": {
+      "properties": {
+        "strict": {
+          "type": "boolean"
+        },
+        "contexts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Rule": {
+      "not": {
+        "required": [
+          "branch_name_pattern",
+          "tag_name_pattern"
+        ]
+      },
+      "properties": {
+        "branch_name_pattern": {
+          "$ref": "#/$defs/PatternRule"
+        },
+        "commit_author_email_pattern": {
+          "$ref": "#/$defs/PatternRule"
+        },
+        "commit_message_pattern": {
+          "$ref": "#/$defs/PatternRule"
+        },
+        "committer_email_pattern": {
+          "$ref": "#/$defs/PatternRule"
+        },
+        "creation": {
+          "type": "boolean"
+        },
+        "deletion": {
+          "type": "boolean"
+        },
+        "non_fast_forward": {
+          "type": "boolean"
+        },
+        "pull_request": {
+          "$ref": "#/$defs/PullRequestRule"
+        },
+        "required_deployments": {
+          "$ref": "#/$defs/RequiredDeployments"
+        },
+        "required_linear_history": {
+          "type": "boolean"
+        },
+        "required_signatures": {
+          "type": "boolean"
+        },
+        "required_status_checks": {
+          "$ref": "#/$defs/RequiredStatusChecks"
+        },
+        "tag_name_pattern": {
+          "$ref": "#/$defs/PatternRule"
+        },
+        "required_code_scanning": {
+          "$ref": "#/$defs/RequiredCodeScanning"
+        },
+        "update": {
+          "type": "boolean"
+        },
+        "update_allows_fetch_and_merge": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Ruleset": {
+      "properties": {
+        "enforcement": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "active",
+            "evaluate"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "rules": {
+          "$ref": "#/$defs/Rule"
+        },
+        "target": {
+          "type": "string",
+          "enum": [
+            "branch",
+            "tag"
+          ]
+        },
+        "bypass_actors": {
+          "items": {
+            "$ref": "#/$defs/BypassActor"
+          },
+          "type": "array"
+        },
+        "conditions": {
+          "$ref": "#/$defs/Conditions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "enforcement",
+        "name",
+        "rules",
+        "target"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "allow_squash_merge": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "squash_merge_commit_title": {
+            "enum": [
+              "PR_TITLE",
+              "COMMIT_OR_PR_TITLE"
+            ]
+          },
+          "squash_merge_commit_message": {
+            "enum": [
+              "PR_BODY",
+              "COMMIT_MESSAGES",
+              "BLANK"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "allow_merge_commit": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "merge_commit_title": {
+            "enum": [
+              "PR_TITLE",
+              "MERGE_MESSAGE"
+            ]
+          },
+          "merge_commit_message": {
+            "enum": [
+              "PR_BODY",
+              "PR_TITLE",
+              "BLANK"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "title": "Repository Configuration"
+}
