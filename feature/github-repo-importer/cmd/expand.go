@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/gr-oss-devops/github-repo-importer/pkg/github"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -16,11 +17,26 @@ var (
 	outputDir string
 )
 
+type ExpansionConfig struct {
+	HighIntegrity *HighIntegrityConfig `yaml:"high_integrity,omitempty"`
+}
+
+type HighIntegrityConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type RepositoryWithExpansionConfig struct {
+	github.Repository `yaml:",inline"`
+	ExpansionConfig   `yaml:",inline"`
+}
+
 var expandCmd = &cobra.Command{
 	Use:   "expand",
 	Short: "Expand YAML configuration files with default values",
 	Long:  `Expand YAML configuration files by adding default fields and sorting keys for deterministic output.`,
-	RunE:  runExpand,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return expandDirectory(inputDir, outputDir)
+	},
 }
 
 func init() {
@@ -28,14 +44,60 @@ func init() {
 
 	expandCmd.Flags().StringVarP(&inputDir, "input-dir", "d", "", "Input directory path")
 	expandCmd.Flags().StringVarP(&outputDir, "output-dir", "o", "", "Output directory path")
+
+	expandCmd.MarkPersistentFlagRequired("input-dir")
+	expandCmd.MarkPersistentFlagRequired("output-dir")
 }
 
-func runExpand(cmd *cobra.Command, args []string) error {
-	if inputDir != "" && outputDir == "" {
-		return fmt.Errorf("--output-dir must be specified when using --input-dir")
+func expandDirectory(inputDir, outputDir string) error {
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	return expandDirectory(inputDir, outputDir)
+	absInputDir, err := filepath.Abs(inputDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute input path: %w", err)
+	}
+	absOutputDir, err := filepath.Abs(outputDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute output path: %w", err)
+	}
+
+	return filepath.Walk(absInputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			absPath, err := filepath.Abs(path)
+			if err != nil {
+				return err
+			}
+			if absPath == absOutputDir {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		ext := filepath.Ext(path)
+		if ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(absInputDir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		outPath := filepath.Join(absOutputDir, relPath)
+
+		outDir := filepath.Dir(outPath)
+		if err := os.MkdirAll(outDir, 0755); err != nil {
+			return fmt.Errorf("failed to create output subdirectory: %w", err)
+		}
+
+		return expandFile(path, outPath)
+	})
 }
 
 func expandFile(input, output string) error {
@@ -57,57 +119,22 @@ func expandFile(input, output string) error {
 	return nil
 }
 
-func expandDirectory(inputDir, outputDir string) error {
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	return filepath.Walk(inputDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		ext := filepath.Ext(path)
-		if ext != ".yaml" && ext != ".yml" {
-			return nil
-		}
-
-		relPath, err := filepath.Rel(inputDir, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path: %w", err)
-		}
-
-		outPath := filepath.Join(outputDir, relPath)
-
-		outDir := filepath.Dir(outPath)
-		if err := os.MkdirAll(outDir, 0755); err != nil {
-			return fmt.Errorf("failed to create output subdirectory: %w", err)
-		}
-
-		return expandFile(path, outPath)
-	})
-}
-
 func expandYAML(data []byte) ([]byte, error) {
-	var config map[string]interface{}
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	var repoMap map[string]interface{}
+	if err := yaml.Unmarshal(data, &repoMap); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	expanded := expandRulesets(config)
+	expandRulesets(repoMap)
 
-	delete(expanded, "high_integrity")
+	delete(repoMap, "high_integrity")
 
 	var buf bytes.Buffer
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(2)
 
 	var node yaml.Node
-	if err := node.Encode(expanded); err != nil {
+	if err := node.Encode(repoMap); err != nil {
 		return nil, fmt.Errorf("failed to encode to node: %w", err)
 	}
 
@@ -148,53 +175,90 @@ func sortYAMLNode(node *yaml.Node) {
 	}
 }
 
-func expandRulesets(config map[string]interface{}) map[string]interface{} {
-	if highIntegrity, ok := config["high_integrity"].(map[string]interface{}); ok {
+func expandRulesets(repoMap map[string]interface{}) {
+	if highIntegrity, ok := repoMap["high_integrity"].(map[string]interface{}); ok {
 		if enabled, exists := highIntegrity["enabled"]; exists && enabled == true {
-			rulesets, _ := config["rulesets"].([]interface{})
+			rulesets, _ := repoMap["rulesets"].([]interface{})
 
-			defaultBranchProtectionRuleset := map[string]interface{}{
-				"name":        "auto-generated via high-integrity - Protect main branch",
-				"enforcement": "active",
-				"target":      "branch",
-				"conditions": map[string]interface{}{
-					"ref_name": map[string]interface{}{
-						"include": []interface{}{"~DEFAULT_BRANCH"},
-					},
-				},
-				"rules": map[string]interface{}{
-					"deletion":                true,
-					"non_fast_forward":        true,
-					"required_linear_history": true,
-					"pull_request": map[string]interface{}{
-						"required_approving_review_count":   1,
-						"require_code_owner_review":         false,
-						"dismiss_stale_reviews_on_push":     true,
-						"require_last_push_approval":        true,
-						"required_review_thread_resolution": false,
-					},
-				},
-			}
-			tagProtectionRuleset := map[string]interface{}{
-				"name":        "auto-generated via high-integrity - Make tags immutable",
-				"enforcement": "active",
-				"target":      "tag",
-				"conditions": map[string]interface{}{
-					"ref_name": map[string]interface{}{
-						"include": []interface{}{"~ALL"},
-					},
-				},
-				"rules": map[string]interface{}{
-					"non_fast_forward": true,
-					"update":           true,
-					"deletion":         true,
-				},
-			}
-			rulesets = append(rulesets, defaultBranchProtectionRuleset)
-			rulesets = append(rulesets, tagProtectionRuleset)
-			config["rulesets"] = rulesets
+			defaultBranchProtectionRuleset := createDefaultBranchProtectionRuleset()
+			rulesets = append(rulesets, convertRulesetToMap(defaultBranchProtectionRuleset))
+
+			tagProtectionRuleset := createTagProtectionRuleset()
+			rulesets = append(rulesets, convertRulesetToMap(tagProtectionRuleset))
+
+			repoMap["rulesets"] = rulesets
 		}
 	}
+}
 
-	return config
+func convertRulesetToMap(ruleset github.Ruleset) map[string]interface{} {
+	data, _ := yaml.Marshal(ruleset)
+	var result map[string]interface{}
+	yaml.Unmarshal(data, &result)
+	return result
+}
+
+func createDefaultBranchProtectionRuleset() github.Ruleset {
+	enforcement := "active"
+	target := "branch"
+	name := "auto-generated via high-integrity - Protect main branch"
+
+	deletion := true
+	nonFastForward := true
+	requiredLinearHistory := true
+
+	requiredApprovingReviewCount := 1
+	requireCodeOwnerReview := false
+	dismissStaleReviewsOnPush := true
+	requireLastPushApproval := true
+	requiredReviewThreadResolution := false
+
+	return github.Ruleset{
+		Name:        name,
+		Enforcement: enforcement,
+		Target:      target,
+		Conditions: &github.Conditions{
+			RefName: github.RefNameCondition{
+				Include: []string{"~DEFAULT_BRANCH"},
+			},
+		},
+		Rules: &github.Rule{
+			Deletion:              &deletion,
+			NonFastForward:        &nonFastForward,
+			RequiredLinearHistory: &requiredLinearHistory,
+			PullRequest: &github.PullRequestRule{
+				RequiredApprovingReviewCount:   &requiredApprovingReviewCount,
+				RequireCodeOwnerReview:         &requireCodeOwnerReview,
+				DismissStaleReviewsOnPush:      &dismissStaleReviewsOnPush,
+				RequireLastPushApproval:        &requireLastPushApproval,
+				RequiredReviewThreadResolution: &requiredReviewThreadResolution,
+			},
+		},
+	}
+}
+
+func createTagProtectionRuleset() github.Ruleset {
+	enforcement := "active"
+	target := "tag"
+	name := "auto-generated via high-integrity - Make tags immutable"
+
+	nonFastForward := true
+	update := true
+	deletion := true
+
+	return github.Ruleset{
+		Name:        name,
+		Enforcement: enforcement,
+		Target:      target,
+		Conditions: &github.Conditions{
+			RefName: github.RefNameCondition{
+				Include: []string{"~ALL"},
+			},
+		},
+		Rules: &github.Rule{
+			NonFastForward: &nonFastForward,
+			Update:         &update,
+			Deletion:       &deletion,
+		},
+	}
 }
