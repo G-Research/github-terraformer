@@ -120,21 +120,20 @@ func expandFile(input, output string) error {
 }
 
 func expandYAML(data []byte) ([]byte, error) {
-	var repoMap map[string]interface{}
-	if err := yaml.Unmarshal(data, &repoMap); err != nil {
+	var repoWithExpansion RepositoryWithExpansionConfig
+	if err := yaml.Unmarshal(data, &repoWithExpansion); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	expandRulesets(repoMap)
-
-	delete(repoMap, "high_integrity")
+	expandRulesets(&repoWithExpansion)
+	repoWithExpansion.HighIntegrity = nil
 
 	var buf bytes.Buffer
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(2)
 
 	var node yaml.Node
-	if err := node.Encode(repoMap); err != nil {
+	if err := node.Encode(repoWithExpansion); err != nil {
 		return nil, fmt.Errorf("failed to encode to node: %w", err)
 	}
 
@@ -175,27 +174,14 @@ func sortYAMLNode(node *yaml.Node) {
 	}
 }
 
-func expandRulesets(repoMap map[string]interface{}) {
-	if highIntegrity, ok := repoMap["high_integrity"].(map[string]interface{}); ok {
-		if enabled, exists := highIntegrity["enabled"]; exists && enabled == true {
-			rulesets, _ := repoMap["rulesets"].([]interface{})
+func expandRulesets(repo *RepositoryWithExpansionConfig) {
+	if repo.HighIntegrity != nil && repo.HighIntegrity.Enabled {
+		defaultBranchProtectionRuleset := createDefaultBranchProtectionRuleset()
+		repo.Rulesets = append(repo.Rulesets, defaultBranchProtectionRuleset)
 
-			defaultBranchProtectionRuleset := createDefaultBranchProtectionRuleset()
-			rulesets = append(rulesets, convertRulesetToMap(defaultBranchProtectionRuleset))
-
-			tagProtectionRuleset := createTagProtectionRuleset()
-			rulesets = append(rulesets, convertRulesetToMap(tagProtectionRuleset))
-
-			repoMap["rulesets"] = rulesets
-		}
+		tagProtectionRuleset := createTagProtectionRuleset()
+		repo.Rulesets = append(repo.Rulesets, tagProtectionRuleset)
 	}
-}
-
-func convertRulesetToMap(ruleset github.Ruleset) map[string]interface{} {
-	data, _ := yaml.Marshal(ruleset)
-	var result map[string]interface{}
-	yaml.Unmarshal(data, &result)
-	return result
 }
 
 func createDefaultBranchProtectionRuleset() github.Ruleset {
