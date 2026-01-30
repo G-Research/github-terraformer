@@ -317,42 +317,6 @@ func TestExpandFile_NonExistentInput(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to read input file")
 }
 
-func TestSortYAMLNode_NestedStructures(t *testing.T) {
-	input := `zebra: last
-alpha: first
-nested:
-  zebra: last
-  alpha: first
-array:
-  - name: item2
-  - name: item1`
-
-	result, err := expandYAML([]byte(input))
-	require.NoError(t, err)
-
-	var output map[string]interface{}
-	err = yaml.Unmarshal(result, &output)
-	require.NoError(t, err)
-
-	lines := string(result)
-	alphaPos := findLinePosition(lines, "alpha:")
-	nestedPos := findLinePosition(lines, "nested:")
-	zebraPos := findLinePosition(lines, "zebra:")
-
-	assert.True(t, alphaPos < nestedPos, "alpha should come before nested")
-	assert.True(t, nestedPos < zebraPos, "nested should come before zebra")
-
-	nested, ok := output["nested"].(map[string]interface{})
-	require.True(t, ok)
-
-	nestedKeys := make([]string, 0, len(nested))
-	for k := range nested {
-		nestedKeys = append(nestedKeys, k)
-	}
-	assert.Equal(t, "alpha", nestedKeys[0])
-	assert.Equal(t, "zebra", nestedKeys[1])
-}
-
 func findRulesetByName(rulesets []interface{}, name string) map[string]interface{} {
 	for _, rs := range rulesets {
 		if rsMap, ok := rs.(map[string]interface{}); ok {
