@@ -74,7 +74,7 @@ All repositories in the organization
 
 ## 2.1 Workspace Creation
 
-Create a new workspace in **HCP Terraform** with a name set to the format `gcss-prod-[your org name here]-cli``:
+Create a new workspace in **HCP Terraform** with a name set to the format `github-configuration-prod-[your org name here]-cli``:
 
 * Workspace Type:
 
@@ -273,10 +273,6 @@ Settings → Actions → General
 Configure:
 
 * Workflow permissions → Read and Write
-* Allow GitHub Actions to:
-
-    * Create Pull Requests
-    * Approve Pull Requests
 
 If unavailable, check Organization-level settings.
 
