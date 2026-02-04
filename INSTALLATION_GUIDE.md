@@ -19,64 +19,10 @@ You must have:
 
 * Your GitHub Organization admin access
 * HCP Terraform organization access
-* Permission to create:
-
-    * GitHub Apps
-    * HCP Workspaces
-    * GitHub repositories from templates
-    * Deployment environments
-    * Organization/team tokens in HCP
 
 ---
 
-# 1. Create Required GitHub Apps
-
-Two GitHub Apps must be created.
-
----
-
-## 1.1 GitHub App: `<github org name> GCSS admin bypasser`
-
-### Installation Scope
-
-You will install this app only to one repository. See here: ([Install GitHub App](#43-install-github-app))
-
-### Repository Permissions
-
-| Permission    | Access       |
-| ------------- | ------------ |
-| Checks        | Read & Write |
-| Contents      | Read & Write |
-| Metadata      | Read-only    |
-| Pull Requests | Read & Write |
-
----
-
-### Credentials Handling
-
-After creating the app:
-
-1. Generate a **Private Key**
-2. Save locally:
-
-    * App ID
-    * Private Key (.pem)
-
-These will later be uploaded as **GitHub Deployment Environment Secrets**.
-
----
-
-## 1.2 GitHub App: `<github org name> Github configuration`
-
-### Installation Scope
-
-Install to:
-
-```
-All repositories in the organization
-```
-
----
+# 1. Create `<github org name> Github configuration` Github app
 
 ### Repository Permissions
 
@@ -115,11 +61,16 @@ After creating the app:
 
 These will later be uploaded as **GitHub Deployment Environment Secrets**.
 
+### Installation Scope
+
+Install to:
+```
+All repositories in the organization
+```
+
 ---
 
 # 2. Create HCP Terraform Workspace
-
----
 
 ## 2.1 Workspace Creation
 
@@ -137,13 +88,13 @@ CLI-driven workspace
 
 Add the following Terraform variables:
 
-| Variable              | Type                  | Notes                                                                     |
-|-----------------------| --------------------- |---------------------------------------------------------------------------|
-| app_id                | Terraform             | GitHub App ID (the Github Configuration app)                              |
-| app_installation_id   | Terraform             | GitHub App Installation ID                                                |
-| app_private_key       | Terraform (Sensitive) | GitHub App Private Key                                                    |
-| environment_directory | Terraform             | `dev` or `prod`, whatever you've set as part of the name of the workspace |
-| owner                 | Terraform             | GitHub organization name                                                  |
+| Variable              | Type                  | Notes                                                                                              |
+|-----------------------| --------------------- |----------------------------------------------------------------------------------------------------|
+| app_id                | Terraform             | GitHub App ID (the Github Configuration app)                                                       |
+| app_installation_id   | Terraform             | GitHub App Installation ID                                                                         |
+| app_private_key       | Terraform (Sensitive) | GitHub App Private Key                                                                             |
+| environment_directory | Terraform             | `dev` or `prod`, whatever you've set as part of the name of the workspace. This will be deprecated |
+| owner                 | Terraform             | GitHub organization name                                                                           |
 
 ---
 
@@ -169,11 +120,7 @@ This token will later be added as a GitHub Deployment Environment secret.
 
 ---
 
-# 3. Create Configuration Repository
-
----
-
-## 3.1 Create Repository from Template
+# 3. Create Configuration Repository from Template
 
 Template is available here:
 
@@ -190,11 +137,42 @@ Choose visibility:
 
 ---
 
-# 4. Configure Repository Settings
+# 4. Create `GitHub Terraformer workflow bot` GitHub App
+
+### Repository Permissions
+
+| Permission    | Access       |
+| ------------- | ------------ |
+| Checks        | Read & Write |
+| Contents      | Read & Write |
+| Metadata      | Read-only    |
+| Pull Requests | Read & Write |
 
 ---
 
-## 4.1 Pull Request Settings
+### Credentials Handling
+
+After creating the app:
+
+1. Generate a **Private Key**
+2. Save locally:
+
+    * App ID
+    * Private Key (.pem)
+
+These will be uploaded as **GitHub Deployment Environment Secrets**.
+
+---
+
+### Installation Scope
+
+You will install this app only to the configuration repository.
+
+---
+
+# 5. Configure Repository Settings
+
+## 5.1 Pull Request Settings
 
 Path:
 
@@ -210,7 +188,7 @@ Configure:
 
 ---
 
-## 4.2 Access Review
+## 5.2 Access Review
 
 Path:
 
@@ -218,38 +196,27 @@ Path:
 Settings → Collaborators and teams
 ```
 
-Review repository access.
+Give write access to teams and/or collaborators that are expected to use this repository to make configuration changes
 
 ---
 
-## 4.3 Install GitHub App
-
-Install:
-
-```
-<github org> GCSS admin bypasser
-```
-
-Install to:
-
-```
-Your configuration repository (this repository that you've just created) only
-```
-
----
-
-## 5. Configure the repository
+## 6. Configure the repository
 
 Before creating rulesets, create a PR that:
 
 * configures the app-list.yaml file
-  * This file lists all GitHub Apps that are installed in the organization. You can either grab the list via API or manually add the apps. 
+  * This file lists all GitHub Apps that are installed in the organization. You can either grab the list via API or manually add the apps, or execute this command: 
+  ```
+    gh api orgs/<ORG>/installations --paginate \ 
+        --jq '{apps: [.installations[] | {app_owner: .account.login, app_id: .app_id, app_slug: .app_slug}]}' \
+        | yq -P
+  ```
 * configures the import-config.yaml
   * This config file configures the behavior of the importer workflow. Usually, you would add this repo to the ignore list.
 
 ---
 
-## 6. Configure Branch Protection Ruleset
+## 7. Configure Branch Protection Ruleset
 
 Create a new ruleset with the following configuration.
 
@@ -268,7 +235,7 @@ Protect main branch
 * Add GitHub App:
 
   ```
-  <github org> GCSS admin bypasser
+  GitHub Terraformer workflow bot
   ```
 
 **Target Branches**
@@ -279,7 +246,7 @@ Protect main branch
 Enable:
 
 * Restrict deletions
-* Require pull request before merging:
+* Require pull request before merging (the following settings are only suggested, you can adjust them to your needs):
 
     * 1 required approval
     * Dismiss stale approvals when new commits are pushed
@@ -289,11 +256,13 @@ Enable:
 * Require status checks to pass
 
     * Require branches to be up to date before merging
-    * Add status check: `Terraform plan`, set source to: `GCSS admin bypasser` GitHub App
+    * Add status check: `Terraform plan`, set source to: `GitHub Terraformer workflow bot` GitHub App
 
 * Block force pushes
 
-# 7. Configure GitHub Actions Permissions
+---
+
+# 8. Configure GitHub Actions Permissions
 
 Path:
 
@@ -313,17 +282,11 @@ If unavailable, check Organization-level settings.
 
 ---
 
-# 8. Create Deployment Environments
+# 9. Create Deployment Environments
 
 Create the following environments:
 
----
-
-## 8.1 Environment: `plan`
-
-Protection:
-
-* Allow administrators to bypass protection rules *(temporary)*
+## 9.1 Environment: `plan`
 
 Deployment branches:
 
@@ -335,23 +298,19 @@ Secrets:
 
 | Name            | Value                           |
 | --------------- | ------------------------------- |
-| APP_PRIVATE_KEY | GCSS admin bypasser private key |
+| APP_PRIVATE_KEY | GitHub Terraformer workflow bot private key |
 | TFC_TOKEN       | HCP Team API Token              |
 
 Variables:
 
 | Name      | Value                      |
 | --------- | -------------------------- |
-| APP_ID    | GCSS admin bypasser App ID |
+| APP_ID    | GitHub Terraformer workflow bot App ID |
 | WORKSPACE | HCP workspace name         |
 
 ---
 
-## 8.2 Environment: `schedule`
-
-Protection:
-
-* Allow administrators to bypass *(temporary)*
+## 9.2 Environment: `schedule`
 
 Deployment branches:
 
@@ -373,11 +332,7 @@ Variables:
 
 ---
 
-## 8.3 Environment: `import`
-
-Protection:
-
-* Allow administrators to bypass *(temporary)*
+## 9.3 Environment: `import`
 
 Deployment branches:
 
@@ -399,11 +354,7 @@ Variables:
 
 ---
 
-## 8.4 Environment: `create-fork`
-
-Protection:
-
-* Allow administrators to bypass *(temporary)*
+## 9.4 Environment: `create-fork`
 
 Deployment branches:
 
@@ -425,11 +376,7 @@ Variables:
 
 ---
 
-## 8.5 Environment: `promote`
-
-Protection:
-
-* Allow administrators to bypass *(temporary)*
+## 9.5 Environment: `promote`
 
 Deployment branches:
 
@@ -444,19 +391,19 @@ Secrets:
 
 | Name            | Value                           |
 | --------------- | ------------------------------- |
-| APP_PRIVATE_KEY | GCSS admin bypasser private key |
+| APP_PRIVATE_KEY | GitHub Terraformer workflow bot private key |
 | TFC_TOKEN       | HCP Team API Token              |
 
 Variables:
 
 | Name      | Value                      |
 | --------- | -------------------------- |
-| APP_ID    | GCSS admin bypasser App ID |
+| APP_ID    | GitHub Terraformer workflow bot App ID |
 | WORKSPACE | HCP workspace name         |
 
 ---
 
-# 9. Add repository level variable
+# 10. Add repository level variable
 
 Path:
 
@@ -474,8 +421,7 @@ Add new repository variable:
 
 # Next Steps
 
-After completing installation:
+After completing installation, you should be able to run the `import`/`bulk-import` workflow which will confirm if:
 
-* Validate Terraform plan workflow runs
-* Verify GitHub App authentication
+* GitHub App authentication is set up properly
 * Confirm HCP workspace connectivity
