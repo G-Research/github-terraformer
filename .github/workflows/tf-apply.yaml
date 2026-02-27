@@ -57,4 +57,11 @@ jobs:
         env:
           TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
           TF_WORKSPACE: ${{ vars.WORKSPACE }}
-        run: terraform apply -no-color -input=false -auto-approve
+        run: terraform apply -no-color -input=false ${{ steps.graformer.outputs.plan-file }}
+
+      - name: Clean up plan file
+        if: always() && steps.graformer.outputs.plan-file != ''
+        uses: ./.github/actions/cleanup-plan
+        with:
+          plan-file: ${{ steps.graformer.outputs.plan-file }}
+          working-directory: feature/github-repo-provisioning

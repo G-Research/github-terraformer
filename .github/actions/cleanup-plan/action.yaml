@@ -1,0 +1,15 @@
+name: "Clean up Terraform plan file"
+description: "Removes the saved Terraform plan file"
+inputs:
+  plan-file:
+    description: "Name of the saved Terraform plan file"
+    required: true
+  working-directory:
+    description: "Working directory where the plan file is located"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: rm -f "${{ inputs.plan-file }}"
