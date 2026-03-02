@@ -50,6 +50,7 @@ jobs:
           tfc-token: ${{ secrets.tfc_token }}
           tfc-organization: ${{ inputs.tfc_org }}
           tfc-workspace: ${{ vars.WORKSPACE }}
+          keep-plan: 'true'
 
       - name: Run Terraform apply
         if: steps.graformer.outputs.plan-exitcode == '2'
@@ -61,7 +62,4 @@ jobs:
 
       - name: Clean up plan file
         if: always() && steps.graformer.outputs.plan-file != ''
-        uses: ./.github/actions/cleanup-plan
-        with:
-          plan-file: ${{ steps.graformer.outputs.plan-file }}
-          working-directory: feature/github-repo-provisioning
+        run: rm -f "feature/github-repo-provisioning/${{ steps.graformer.outputs.plan-file }}"

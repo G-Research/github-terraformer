@@ -10,6 +10,10 @@ inputs:
   tfc-workspace:
     description: "HCP cloud workspace name"
     required: true
+  keep-plan:
+    description: "Whether to keep the plan file after execution (true/false). Default is false."
+    required: false
+    default: "false"
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
@@ -150,4 +154,8 @@ runs:
 
     - name: Clean up
       shell: bash
-      run: rm feature/github-repo-provisioning/tfplan.json
+      run: |
+        rm feature/github-repo-provisioning/tfplan.json
+        if [[ "${{ inputs.keep-plan }}" == "false" ]]; then
+          rm -f "feature/github-repo-provisioning/${{ steps.plan.outputs.plan-file }}"
+        fi
