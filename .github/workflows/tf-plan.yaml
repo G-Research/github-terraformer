@@ -82,6 +82,7 @@ jobs:
           tfc-token: ${{ secrets.tfc_token }}
           tfc-organization: ${{ inputs.tfc_org }}
           tfc-workspace: ${{ vars.WORKSPACE }}
+          gcss-ref: ${{ inputs.gcss_ref }}
 
       - name: Post plan summary and handle check-run
         if: always()

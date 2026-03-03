@@ -18,3 +18,6 @@ compare dirA dirB:
 
 generate-schema:
   go run main.go schema
+
+compute-targets config-repo-path gcss-ref="main":
+  go run main.go compute-targets --config-repo-path {{config-repo-path}} --gcss-ref {{gcss-ref}}

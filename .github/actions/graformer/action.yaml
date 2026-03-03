@@ -14,6 +14,14 @@ inputs:
     description: "Whether to keep the plan file after execution (true/false). Default is false."
     required: false
     default: "false"
+  smart-targeting:
+    description: "Auto-detect changed YAML repo files and target only those module instances. Falls back to full plan when no YAML changes or TF code changed."
+    required: false
+    default: "true"
+  gcss-ref:
+    description: "The gcss ref being used. If not 'main', smart targeting is skipped (TF code may have changed)."
+    required: false
+    default: "main"
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
@@ -31,6 +39,11 @@ runs:
       uses: hashicorp/setup-terraform@v3
       with:
         cli_config_credentials_token: ${{ inputs.tfc-token }}
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: feature/github-repo-importer/go.mod
 
     - name: Link backend file
       id: link
@@ -65,6 +78,23 @@ runs:
       shell: bash
       run: terraform validate -no-color
 
+    - name: Compute Terraform targets
+      id: targets
+      shell: bash
+      working-directory: feature/github-repo-importer
+      run: |
+        TARGET_FLAGS=""
+
+        if [[ "${{ inputs.smart-targeting }}" == "true" ]]; then
+          TARGET_FLAGS=$(just compute-targets \
+            "$GITHUB_WORKSPACE/feature/github-repo-provisioning/gcss_config" \
+            "${{ inputs.gcss-ref }}")
+        fi
+
+        echo "flags<<EOF" >> $GITHUB_OUTPUT
+        echo "$TARGET_FLAGS" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
     - name: Run Terraform plan
       id: plan
       shell: bash
@@ -73,7 +103,8 @@ runs:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
-        terraform plan -no-color -input=false -out=tfplan
+        mapfile -t TARGET_ARGS <<< '${{ steps.targets.outputs.flags }}'
+        terraform plan -no-color -input=false -out=tfplan "${TARGET_ARGS[@]}"
         if [[ "${{ inputs.keep-plan }}" == "true" ]]; then
           echo "plan-file=$(pwd)/tfplan" >> $GITHUB_OUTPUT
         fi
