@@ -45,6 +45,11 @@ runs:
       with:
         go-version-file: feature/github-repo-importer/go.mod
 
+    - name: Setup Just
+      uses: extractions/setup-just@v3
+      with:
+        just-version: '1.4.0'
+
     - name: Link backend file
       id: link
       shell: bash
