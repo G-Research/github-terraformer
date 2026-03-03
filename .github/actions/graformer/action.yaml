@@ -74,7 +74,7 @@ runs:
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
         terraform plan -no-color -input=false -out=tfplan
-        echo "plan-file=tfplan" >> $GITHUB_OUTPUT
+        echo "plan-file=$(pwd)/tfplan" >> $GITHUB_OUTPUT
         terraform show --json tfplan | jq '{
           resource_changes: [(.resource_changes // [])[]],
           data: [(.prior_state.values.root_module.resources // [])[] | select(.mode == "data" and .type == "github_team")]
@@ -157,5 +157,5 @@ runs:
       run: |
         rm feature/github-repo-provisioning/tfplan.json
         if [[ "${{ inputs.keep-plan }}" == "false" ]]; then
-          rm -f "feature/github-repo-provisioning/${{ steps.plan.outputs.plan-file }}"
+          rm -f "${{ steps.plan.outputs.plan-file }}"
         fi

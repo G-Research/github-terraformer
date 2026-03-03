@@ -73,7 +73,7 @@ jobs:
 
       - name: Clean up plan file
         if: always() && steps.graformer.outputs.plan-file != ''
-        run: rm -f "feature/github-repo-provisioning/${{ steps.graformer.outputs.plan-file }}"
+        run: rm -f "${{ steps.graformer.outputs.plan-file }}"
 
       - name: Configure git
         run: |
