@@ -74,7 +74,7 @@ runs:
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
         terraform plan -no-color -input=false -out=tfplan
-        if [[ "${{ inputs.keep-plan }}" == "false" ]]; then
+        if [[ "${{ inputs.keep-plan }}" == "true" ]]; then
           echo "plan-file=$(pwd)/tfplan" >> $GITHUB_OUTPUT
         fi
         terraform show --json tfplan | jq '{
