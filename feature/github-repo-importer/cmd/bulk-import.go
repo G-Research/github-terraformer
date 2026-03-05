@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gr-oss-devops/github-repo-importer/pkg/github"
 )
@@ -49,29 +47,4 @@ var (
 func init() {
 	rootCmd.AddCommand(bulkImportCmd)
 	bulkImportCmd.Flags().StringVarP(&configFilePath, "config", "c", "./import-config.yaml", "Path to the yaml config file (defaults to ./import-config.yaml)")
-}
-
-func DecodeConfiguration(configFilePath string) (*github.Config, error) {
-	file, err := os.Open(configFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open config file: %w", err)
-	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			fmt.Printf("failed to close file: %v\n", err)
-		}
-	}(file)
-
-	var cfg github.Config
-	if err := yaml.NewDecoder(file).Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to decode YAML: %w", err)
-	}
-
-	if cfg.PageSize == nil {
-		ps := github.DefaultPageSize
-		cfg.PageSize = &ps
-	}
-
-	return &cfg, nil
 }

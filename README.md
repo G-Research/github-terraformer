@@ -43,4 +43,4 @@ To import a **forked** repository into the organization:
 > 📝 We are working on improving this so that the user has the same experience as when creating a new repo
 
 > [!IMPORTANT]
-> All important attributes are documented in the [Developer's Guide](DEVELOPERS_GUIDE.md).
+> All important attributes are documented in the [Developer's Guide](docs/DEVELOPERS_GUIDE.md).

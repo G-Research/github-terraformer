@@ -1,9 +1,9 @@
 provider "github" {
   owner = var.owner
   app_auth {
-    id = var.app_id
+    id              = var.app_id
     installation_id = var.app_installation_id
-    pem_file = var.app_private_key
+    pem_file        = var.app_private_key
   }
 }
 
@@ -30,25 +30,26 @@ locals {
   )
 
   all_repos = merge(local.generated_repos, local.new_repos)
+
 }
 
 import {
   for_each = local.generated_repos
-  to = module.repository[each.key].github_repository.repository
-  id = each.key
+  to       = module.repository[each.key].github_repository.repository
+  id       = each.key
 }
 
 import {
   for_each = local.generated_repos
-  to = module.repository[each.key].github_branch_default.default[0]
-  id = each.key
+  to       = module.repository[each.key].github_branch_default.default[0]
+  id       = each.key
 }
 
 locals {
   flattened_generated_branch_protections_v4 = flatten([
     for repo, config in local.generated_repos : [
       for branch_protection in try(config.branch_protections_v4, []) : {
-        repository = repo
+        repository        = repo
         branch_protection = branch_protection
       }
     ]
@@ -76,51 +77,51 @@ locals {
 
 data "github_app" "app" {
   for_each = toset(local.app_actors)
-  slug = split("/", each.value)[1]
+  slug     = split("/", each.value)[1]
 }
 
 locals {
   all_generated_collaborators = { for repo, config in local.generated_repos : repo => concat(
-    try([for i in config.pull_collaborators     : { username: i,  permission = "pull"     }], []),
-    try([for i in config.push_collaborators     : { username: i,  permission = "push"     }], []),
-    try([for i in config.admin_collaborators    : { username: i,  permission = "admin"    }], []),
-    try([for i in config.maintain_collaborators : { username: i,  permission = "maintain" }], []),
-    try([for i in config.triage_collaborators   : { username: i,  permission = "triage"   }], [])
-  )}
+    try([for i in config.pull_collaborators : { username : i, permission = "pull" }], []),
+    try([for i in config.push_collaborators : { username : i, permission = "push" }], []),
+    try([for i in config.admin_collaborators : { username : i, permission = "admin" }], []),
+    try([for i in config.maintain_collaborators : { username : i, permission = "maintain" }], []),
+    try([for i in config.triage_collaborators : { username : i, permission = "triage" }], [])
+  ) }
 
   all_generated_teams = { for repo, config in local.generated_repos : repo => concat(
-    try([for i in config.pull_teams     : { name: i,  permission = "pull"     }], []),
-    try([for i in config.push_teams     : { name: i,  permission = "push"     }], []),
-    try([for i in config.admin_teams    : { name: i,  permission = "admin"    }], []),
-    try([for i in config.maintain_teams : { name: i,  permission = "maintain" }], []),
-    try([for i in config.triage_teams   : { name: i,  permission = "triage"   }], [])
-  )}
+    try([for i in config.pull_teams : { name : i, permission = "pull" }], []),
+    try([for i in config.push_teams : { name : i, permission = "push" }], []),
+    try([for i in config.admin_teams : { name : i, permission = "admin" }], []),
+    try([for i in config.maintain_teams : { name : i, permission = "maintain" }], []),
+    try([for i in config.triage_teams : { name : i, permission = "triage" }], [])
+  ) }
 
   all_new_collaborators = { for repo, config in local.new_repos : repo => concat(
-    try([for i in config.pull_collaborators     : { username: i,  permission = "pull"     }], []),
-    try([for i in config.push_collaborators     : { username: i,  permission = "push"     }], []),
-    try([for i in config.admin_collaborators    : { username: i,  permission = "admin"    }], []),
-    try([for i in config.maintain_collaborators : { username: i,  permission = "maintain" }], []),
-    try([for i in config.triage_collaborators   : { username: i,  permission = "triage"   }], [])
-  )}
+    try([for i in config.pull_collaborators : { username : i, permission = "pull" }], []),
+    try([for i in config.push_collaborators : { username : i, permission = "push" }], []),
+    try([for i in config.admin_collaborators : { username : i, permission = "admin" }], []),
+    try([for i in config.maintain_collaborators : { username : i, permission = "maintain" }], []),
+    try([for i in config.triage_collaborators : { username : i, permission = "triage" }], [])
+  ) }
 
   all_new_teams = { for repo, config in local.new_repos : repo => concat(
-    try([for i in config.pull_teams     : { name: i,  permission = "pull"     }], []),
-    try([for i in config.push_teams     : { name: i,  permission = "push"     }], []),
-    try([for i in config.admin_teams    : { name: i,  permission = "admin"    }], []),
-    try([for i in config.maintain_teams : { name: i,  permission = "maintain" }], []),
-    try([for i in config.triage_teams   : { name: i,  permission = "triage"   }], [])
-  )}
+    try([for i in config.pull_teams : { name : i, permission = "pull" }], []),
+    try([for i in config.push_teams : { name : i, permission = "push" }], []),
+    try([for i in config.admin_teams : { name : i, permission = "admin" }], []),
+    try([for i in config.maintain_teams : { name : i, permission = "maintain" }], []),
+    try([for i in config.triage_teams : { name : i, permission = "triage" }], [])
+  ) }
 
   all_collaborators = merge(local.all_generated_collaborators, local.all_new_collaborators)
-  all_teams = merge(local.all_generated_teams, local.all_new_teams)
+  all_teams         = merge(local.all_generated_teams, local.all_new_teams)
 }
 
 import {
   for_each = toset(flatten([for repo, collaborators in local.all_generated_collaborators : [
     for collaborator in collaborators : {
-      repo      = repo
-      username  = collaborator.username
+      repo       = repo
+      username   = collaborator.username
       permission = collaborator.permission
     }
   ]]))
@@ -141,9 +142,9 @@ data "github_team" "team" {
 import {
   for_each = toset(flatten([for repo, teams in local.all_generated_teams : [
     for team in teams : {
-      repo        = repo
-      name        = team.name
-      team_id     = data.github_team.team[team.name].id
+      repo    = repo
+      name    = team.name
+      team_id = data.github_team.team[team.name].id
     }
   ]]))
 
@@ -153,45 +154,45 @@ import {
 
 
 module "repository" {
-  source                  = "./modules/terraform-github-repository"
-  for_each                = local.all_repos
+  source   = "./modules/terraform-github-repository"
+  for_each = local.all_repos
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Main resource configuration
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  name                    = each.key
-  allow_merge_commit      = try(each.value.allow_merge_commit,      true)
-  allow_rebase_merge      = try(each.value.allow_rebase_merge,      false)
-  allow_squash_merge      = try(each.value.allow_squash_merge,      false)
-  allow_auto_merge        = try(each.value.allow_auto_merge,        false)
-  allow_update_branch     = try(each.value.allow_update_branch,     null)
-  description             = try(each.value.description,             "")
-  delete_branch_on_merge  = try(each.value.delete_branch_on_merge,  true)
-  homepage_url            = try(each.value.homepage_url,            "")
-  visibility              = try(each.value.visibility,              "private")
-  has_issues              = try(each.value.has_issues,              false)
-  has_projects            = try(each.value.has_projects,            false)
-  has_wiki                = try(each.value.has_wiki,                false)
-  has_downloads           = try(each.value.has_downloads,           false)
-  has_discussions         = try(each.value.has_discussions,         null)
-  is_template             = try(each.value.is_template,             false)
-  default_branch          = try(each.value.default_branch,          "")
-  archived                = try(each.value.archived,                false)
-  topics                  = try(each.value.topics,                  [])
-  archive_on_destroy      = try(each.value.archive_on_destroy,      null)
-  pages                   = try(contains(keys(each.value), "pages") && try(each.value.pages != null, false) ? {
-                              branch      = try(each.value.pages.branch, "gh-pages")
-                              path        = try(each.value.pages.path,   "/")
-                              cname       = try(each.value.pages.cname,  null)
-                              build_type  = try(each.value.pages.build_type,  null)
-                            } : null)
-  vulnerability_alerts    = try(each.value.vulnerability_alerts_enabled,  null)
+  name                   = each.key
+  allow_merge_commit     = try(each.value.allow_merge_commit, true)
+  allow_rebase_merge     = try(each.value.allow_rebase_merge, false)
+  allow_squash_merge     = try(each.value.allow_squash_merge, false)
+  allow_auto_merge       = try(each.value.allow_auto_merge, false)
+  allow_update_branch    = try(each.value.allow_update_branch, null)
+  description            = try(each.value.description, "")
+  delete_branch_on_merge = try(each.value.delete_branch_on_merge, true)
+  homepage_url           = try(each.value.homepage_url, "")
+  visibility             = try(each.value.visibility, "private")
+  has_issues             = try(each.value.has_issues, false)
+  has_projects           = try(each.value.has_projects, false)
+  has_wiki               = try(each.value.has_wiki, false)
+  has_downloads          = try(each.value.has_downloads, false)
+  has_discussions        = try(each.value.has_discussions, null)
+  is_template            = try(each.value.is_template, false)
+  default_branch         = try(each.value.default_branch, "")
+  archived               = try(each.value.archived, false)
+  topics                 = try(each.value.topics, [])
+  archive_on_destroy     = try(each.value.archive_on_destroy, null)
+  pages = try(contains(keys(each.value), "pages") && try(each.value.pages != null, false) ? {
+    branch     = try(each.value.pages.branch, "gh-pages")
+    path       = try(each.value.pages.path, "/")
+    cname      = try(each.value.pages.cname, null)
+    build_type = try(each.value.pages.build_type, null)
+  } : null)
+  vulnerability_alerts = try(each.value.vulnerability_alerts_enabled, null)
 
-  squash_merge_commit_title   = try(each.value.squash_merge_commit_title,   null)
+  squash_merge_commit_title   = try(each.value.squash_merge_commit_title, null)
   squash_merge_commit_message = try(each.value.squash_merge_commit_message, null)
-  merge_commit_title          = try(each.value.merge_commit_title,          null)
-  merge_commit_message        = try(each.value.merge_commit_message,        null)
+  merge_commit_title          = try(each.value.merge_commit_title, null)
+  merge_commit_message        = try(each.value.merge_commit_message, null)
   web_commit_signoff_required = try(each.value.web_commit_signoff_required, null)
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -199,33 +200,33 @@ module "repository" {
   # Repository Creation Configuration
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  auto_init           = try(each.value.auto_init,                           true)
-  gitignore_template  = try(each.value.gitignore_template,                  "")
-  license_template    = try(each.value.license_template,                    "")
-  template            = try(contains(keys(each.value), "template") && try(each.value.template != null, false) ? {
-                          owner       = try(each.value.template.owner,      "")
-                          repository  = try(each.value.template.repository, "")
-                        } : null)
+  auto_init          = try(each.value.auto_init, true)
+  gitignore_template = try(each.value.gitignore_template, "")
+  license_template   = try(each.value.license_template, "")
+  template = try(contains(keys(each.value), "template") && try(each.value.template != null, false) ? {
+    owner      = try(each.value.template.owner, "")
+    repository = try(each.value.template.repository, "")
+  } : null)
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Teams Configuration
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  pull_teams      = try([for i in each.value.pull_teams     : data.github_team.team[i].id],  [])
-  push_teams      = try([for i in each.value.push_teams     : data.github_team.team[i].id],  [])
-  admin_teams     = try([for i in each.value.admin_teams    : data.github_team.team[i].id],  [])
-  maintain_teams  = try([for i in each.value.maintain_teams : data.github_team.team[i].id],  [])
-  triage_teams    = try([for i in each.value.triage_teams   : data.github_team.team[i].id],  [])
+  pull_teams     = try([for i in each.value.pull_teams : data.github_team.team[i].id], [])
+  push_teams     = try([for i in each.value.push_teams : data.github_team.team[i].id], [])
+  admin_teams    = try([for i in each.value.admin_teams : data.github_team.team[i].id], [])
+  maintain_teams = try([for i in each.value.maintain_teams : data.github_team.team[i].id], [])
+  triage_teams   = try([for i in each.value.triage_teams : data.github_team.team[i].id], [])
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Collaborator Configuration
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  pull_collaborators      = try(each.value.pull_collaborators,      [])
-  push_collaborators      = try(each.value.push_collaborators,      [])
-  admin_collaborators     = try(each.value.admin_collaborators,     [])
-  maintain_collaborators  = try(each.value.maintain_collaborators,  [])
-  triage_collaborators    = try(each.value.triage_collaborators,    [])
+  pull_collaborators     = try(each.value.pull_collaborators, [])
+  push_collaborators     = try(each.value.push_collaborators, [])
+  admin_collaborators    = try(each.value.admin_collaborators, [])
+  maintain_collaborators = try(each.value.maintain_collaborators, [])
+  triage_collaborators   = try(each.value.triage_collaborators, [])
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Branches Configuration
@@ -244,16 +245,16 @@ module "repository" {
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   branch_protections_v4 = try([
     for branch_protection in try(each.value.branch_protections_v4, []) : {
-      pattern                         = branch_protection.pattern
-      allows_deletions                = try(branch_protection.allows_deletions, false)
-      allows_force_pushes             = try(branch_protection.allows_force_pushes, false)
-      force_push_bypassers            = try([for bypasser in branch_protection.force_push_bypassers : (!startswith(bypasser, "app/") ? bypasser : data.github_app.app[bypasser].node_id)], [])
-      enforce_admins                  = try(branch_protection.enforce_admins, true)
-      lock_branch                     = try(branch_protection.lock_branch, null)
+      pattern              = branch_protection.pattern
+      allows_deletions     = try(branch_protection.allows_deletions, false)
+      allows_force_pushes  = try(branch_protection.allows_force_pushes, false)
+      force_push_bypassers = try([for bypasser in branch_protection.force_push_bypassers : (!startswith(bypasser, "app/") ? bypasser : data.github_app.app[bypasser].node_id)], [])
+      enforce_admins       = try(branch_protection.enforce_admins, true)
+      lock_branch          = try(branch_protection.lock_branch, null)
 
-      restricts_pushes                = try(branch_protection.restricts_pushes, false)
-      blocks_creations                = try(branch_protection.blocks_creations, false)
-      push_restrictions               = try([for bypasser in branch_protection.push_restrictions : (!startswith(bypasser, "app/") ? bypasser : data.github_app.app[bypasser].node_id)], [])
+      restricts_pushes  = try(branch_protection.restricts_pushes, false)
+      blocks_creations  = try(branch_protection.blocks_creations, false)
+      push_restrictions = try([for bypasser in branch_protection.push_restrictions : (!startswith(bypasser, "app/") ? bypasser : data.github_app.app[bypasser].node_id)], [])
 
       require_conversation_resolution = try(branch_protection.require_conversation_resolution, false)
       require_signed_commits          = try(branch_protection.require_signed_commits, false)
@@ -302,15 +303,64 @@ module "repository" {
   # App Installations
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#  app_installations = try(each.value.app_installations, [])
+  #  app_installations = try(each.value.app_installations, [])
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # Environments Configuration
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  environments = try(each.value.environments, [])
 }
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Environment Management Strategy:
+#
+# 1. IMPORT (from importer_tmp_dir/):
+#    - These environments already exist in GitHub
+#    - Use import blocks to bring them into Terraform state
+#    - After import, move YAML to repos/ for ongoing management
+#
+# 2. CREATE (from repos/):
+#    - These are new environments or changes to existing repos
+#    - Terraform will create/update them without import blocks
+#    - No import needed - Terraform manages the full lifecycle
+#
+# ---------------------------------------------------------------------------------------------------------------------
+
+# Import environments from generated_repos (importer_tmp_dir/) only
+# These should already exist in GitHub and need to be imported
+locals {
+  flattened_generated_environments = flatten([
+    for repo, config in local.generated_repos : [
+      for environment in try(config.environments, []) : {
+        repository  = repo
+        environment = environment
+      }
+    ]
+  ])
+
+  generated_environments_map = {
+    for item in local.flattened_generated_environments :
+    "${item.repository}:${item.environment.environment}" => item
+  }
+}
+
+import {
+  for_each = local.generated_environments_map
+
+  to = module.repository[each.value.repository].github_repository_environment.environment[each.value.environment.environment]
+  id = "${each.value.repository}:${each.value.environment.environment}"
+}
+
+# Environments from new_repos (repos/ directory) are NOT imported
+# They will be created/updated by Terraform as regular resources
 
 locals {
   new_rulesets_flattened = flatten([
     for repo, config in local.new_repos : [
       for ruleset in try(config.rulesets, []) : {
-        repository  = repo
-        ruleset     = ruleset
+        repository = repo
+        ruleset    = ruleset
       }
     ]
   ])
@@ -323,8 +373,8 @@ locals {
   generated_rulesets_flattened = flatten([
     for repo, config in local.generated_repos : [
       for ruleset in try(config.rulesets, []) : {
-        repository  = repo
-        ruleset     = ruleset
+        repository = repo
+        ruleset    = ruleset
       }
     ]
   ])
@@ -339,8 +389,8 @@ locals {
 
 import {
   for_each = local.generated_rulesets_map
-  to = github_repository_ruleset.ruleset[each.key]
-  id = format("%s:%s", each.value.repository, each.value.ruleset.id)
+  to       = github_repository_ruleset.ruleset[each.key]
+  id       = format("%s:%s", each.value.repository, each.value.ruleset.id)
 }
 
 locals {
@@ -380,7 +430,7 @@ locals {
 
 data "github_team" "ruleset_team" {
   for_each = toset(local.team_bypass_actors)
-  slug = each.value
+  slug     = each.value
 }
 
 locals {
@@ -393,8 +443,8 @@ locals {
 resource "github_repository_ruleset" "ruleset" {
   depends_on = [module.repository]
 
-  for_each  = local.all_rulesets_map
-  name      = each.value.ruleset.name
+  for_each    = local.all_rulesets_map
+  name        = each.value.ruleset.name
   enforcement = each.value.ruleset.enforcement
   target      = each.value.ruleset.target
   repository  = each.value.repository
@@ -478,9 +528,9 @@ resource "github_repository_ruleset" "ruleset" {
 
     dynamic "required_status_checks" {
       for_each = (
-      contains(keys(each.value.ruleset.rules), "required_status_checks") &&
-      try(each.value.ruleset.rules.required_status_checks != null, false) &&
-      length(try(each.value.ruleset.rules.required_status_checks.required_check, [])) > 0
+        contains(keys(each.value.ruleset.rules), "required_status_checks") &&
+        try(each.value.ruleset.rules.required_status_checks != null, false) &&
+        length(try(each.value.ruleset.rules.required_status_checks.required_check, [])) > 0
       ) ? [each.value.ruleset.rules.required_status_checks] : []
 
       content {
@@ -515,7 +565,7 @@ resource "github_repository_ruleset" "ruleset" {
         contains(keys(each.value.ruleset.rules), "required_code_scanning") &&
         try(each.value.ruleset.rules.required_code_scanning != null, false) &&
         length(try(each.value.ruleset.rules.required_code_scanning.required_code_scanning_tool, [])) > 0
-        ? [each.value.ruleset.rules.required_code_scanning]  # Only one block for `required_code_scanning`
+        ? [each.value.ruleset.rules.required_code_scanning] # Only one block for `required_code_scanning`
         : []
       )
 
@@ -524,8 +574,8 @@ resource "github_repository_ruleset" "ruleset" {
           for_each = try(each.value.ruleset.rules.required_code_scanning.required_code_scanning_tool, [])
 
           content {
-            tool                    = required_code_scanning_tool.value.tool
-            alerts_threshold        = required_code_scanning_tool.value.alerts_threshold
+            tool                      = required_code_scanning_tool.value.tool
+            alerts_threshold          = required_code_scanning_tool.value.alerts_threshold
             security_alerts_threshold = required_code_scanning_tool.value.security_alerts_threshold
           }
         }
@@ -537,13 +587,13 @@ resource "github_repository_ruleset" "ruleset" {
     for_each = try(each.value.ruleset.bypass_actors, [])
 
     content {
-      actor_id    = startswith(bypass_actors.value.name, "team/") ? data.github_team.ruleset_team[replace(bypass_actors.value.name, "team/", "")].id : (
+      actor_id = startswith(bypass_actors.value.name, "team/") ? data.github_team.ruleset_team[replace(bypass_actors.value.name, "team/", "")].id : (
         startswith(bypass_actors.value.name, "app/") ? local.apps_map[bypass_actors.value.name].app_id : local.ruleset_actors[bypass_actors.value.name].actor_id
       )
-      actor_type  = startswith(bypass_actors.value.name, "team/") ? "Team" : (
+      actor_type = startswith(bypass_actors.value.name, "team/") ? "Team" : (
         startswith(bypass_actors.value.name, "app/") ? "Integration" : local.ruleset_actors[bypass_actors.value.name].actor_type
       )
-      bypass_mode = try(bypass_actors.value.bypass_mode,  "always")
+      bypass_mode = try(bypass_actors.value.bypass_mode, "always")
     }
   }
 }

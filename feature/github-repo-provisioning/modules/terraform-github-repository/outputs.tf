@@ -84,6 +84,21 @@ output "app_installations" {
   description = "A map of deploy app installations keyed by installation id."
 }
 
+output "environments" {
+  value       = github_repository_environment.environment
+  description = "A map of repository environments keyed by environment name."
+}
+
+output "environment_deployment_branch_policies" {
+  value       = github_repository_environment_deployment_policy.branch_policies
+  description = "A map of environment deployment branch policies."
+}
+
+output "environment_deployment_tag_policies" {
+  value       = github_repository_environment_deployment_policy.tag_policies
+  description = "A map of environment deployment tag policies."
+}
+
 # ----------------------------------------------------------------------------------------------------------------------
 # OUTPUT MODULE CONFIGURATION
 # ----------------------------------------------------------------------------------------------------------------------

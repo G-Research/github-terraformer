@@ -153,11 +153,11 @@ resource "github_repository" "repository" {
     ]
   }
 
-    squash_merge_commit_title   = local.squash_merge_commit_title
-    squash_merge_commit_message = local.squash_merge_commit_message
-    merge_commit_title          = local.merge_commit_title
-    merge_commit_message        = local.merge_commit_message
-    web_commit_signoff_required = local.web_commit_signoff_required
+  squash_merge_commit_title   = local.squash_merge_commit_title
+  squash_merge_commit_message = local.squash_merge_commit_message
+  merge_commit_title          = local.merge_commit_title
+  merge_commit_message        = local.merge_commit_message
+  web_commit_signoff_required = local.web_commit_signoff_required
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -246,15 +246,15 @@ resource "github_branch_protection" "branch_protection" {
   dynamic "restrict_pushes" {
     for_each = var.branch_protections_v4[each.value].restricts_pushes ? try([var.branch_protections_v4[each.value]], []) : []
     content {
-      blocks_creations  = try(var.branch_protections_v4[each.value].blocks_creations, true)
-      push_allowances   = try(var.branch_protections_v4[each.value].push_restrictions, [])
+      blocks_creations = try(var.branch_protections_v4[each.value].blocks_creations, true)
+      push_allowances  = try(var.branch_protections_v4[each.value].push_restrictions, [])
     }
   }
 
-  force_push_bypassers  = try(var.branch_protections_v4[each.value].force_push_bypassers, [])
-  allows_force_pushes   = try(var.branch_protections_v4[each.value].allows_force_pushes, null)
-  allows_deletions      = try(var.branch_protections_v4[each.value].allows_deletions, null)
-  lock_branch           = try(var.branch_protections_v4[each.value].lock_branch, null)
+  force_push_bypassers = try(var.branch_protections_v4[each.value].force_push_bypassers, [])
+  allows_force_pushes  = try(var.branch_protections_v4[each.value].allows_force_pushes, null)
+  allows_deletions     = try(var.branch_protections_v4[each.value].allows_deletions, null)
+  lock_branch          = try(var.branch_protections_v4[each.value].lock_branch, null)
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -587,4 +587,135 @@ resource "github_app_installation_repository" "app_installation_repository" {
 
   repository      = github_repository.repository.name
   installation_id = each.value
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Repository Environments
+# ---------------------------------------------------------------------------------------------------------------------
+
+locals {
+  # Create environments map
+  environments_map = { for e in var.environments : e.environment => e }
+
+  # Flatten all usernames across all environments for lookup
+  all_reviewer_usernames = distinct(flatten([
+    for env in var.environments :
+    try(env.reviewers.users, [])
+  ]))
+
+  # Flatten all team slugs across all environments for lookup
+  all_reviewer_team_slugs = distinct(flatten([
+    for env in var.environments :
+    try(env.reviewers.teams, [])
+  ]))
+}
+
+# Data sources to resolve usernames to user IDs
+data "github_user" "reviewer" {
+  for_each = toset(local.all_reviewer_usernames)
+  username = each.value
+}
+
+# Data sources to resolve team slugs to team IDs
+data "github_team" "reviewer" {
+  for_each = toset(local.all_reviewer_team_slugs)
+  slug     = each.value
+}
+
+resource "github_repository_environment" "environment" {
+  for_each = local.environments_map
+
+  environment         = each.key
+  repository          = github_repository.repository.name
+  wait_timer          = try(each.value.wait_timer, null)
+  can_admins_bypass   = try(each.value.can_admins_bypass, true)
+  prevent_self_review = try(each.value.prevent_self_review, false)
+
+  dynamic "reviewers" {
+    for_each = try(each.value.reviewers, null) != null ? [each.value.reviewers] : []
+
+    content {
+      # Convert team slugs to team IDs
+      teams = try(reviewers.value.teams, null) != null ? [
+        for team_slug in reviewers.value.teams : data.github_team.reviewer[team_slug].id
+      ] : null
+
+      # Convert usernames to user IDs
+      users = try(reviewers.value.users, null) != null ? [
+        for username in reviewers.value.users : data.github_user.reviewer[username].id
+      ] : null
+    }
+  }
+
+  dynamic "deployment_branch_policy" {
+    for_each = (
+      try(each.value.deployment_policy.policy_type, null) != null ? (
+        # If policy_type is "protected_branches", use protected branches only
+        try(each.value.deployment_policy.policy_type, "") == "protected_branches" ? [{
+          protected_branches     = true
+          custom_branch_policies = false
+        }] :
+        # If policy_type is "selected_branches_and_tags", use custom policies
+        try(each.value.deployment_policy.policy_type, "") == "selected_branches_and_tags" ? [{
+          protected_branches     = false
+          custom_branch_policies = true
+        }] : []
+      ) : []
+    )
+
+    content {
+      protected_branches     = deployment_branch_policy.value.protected_branches
+      custom_branch_policies = deployment_branch_policy.value.custom_branch_policies
+    }
+  }
+}
+
+# Create deployment branch policies for custom branch patterns
+resource "github_repository_environment_deployment_policy" "branch_policies" {
+  # Create a policy for each branch pattern in each environment that has custom policies
+  for_each = {
+    for item in flatten([
+      for env_name, env in local.environments_map : [
+        for branch_pattern in (
+          try(env.deployment_policy.policy_type, "") == "selected_branches_and_tags" ?
+          try(env.deployment_policy.branch_patterns, []) : []
+        ) : {
+          key     = "${env_name}:branch:${branch_pattern}"
+          env     = env_name
+          pattern = branch_pattern
+        }
+      ]
+    ]) : item.key => item
+  }
+
+  repository     = github_repository.repository.name
+  environment    = github_repository_environment.environment[each.value.env].environment
+  branch_pattern = each.value.pattern
+
+  depends_on = [github_repository_environment.environment]
+}
+
+# Create deployment tag policies for custom tag patterns
+resource "github_repository_environment_deployment_policy" "tag_policies" {
+  # Create a policy for each tag pattern in each environment that has custom policies
+  for_each = {
+    for item in flatten([
+      for env_name, env in local.environments_map : [
+        for tag_pattern in (
+          try(env.deployment_policy.policy_type, "") == "selected_branches_and_tags" ?
+          try(env.deployment_policy.tag_patterns, []) : []
+        ) : {
+          key     = "${env_name}:tag:${tag_pattern}"
+          env     = env_name
+          pattern = tag_pattern
+        }
+      ]
+    ]) : item.key => item
+  }
+
+  repository  = github_repository.repository.name
+  environment = github_repository_environment.environment[each.value.env].environment
+  tag_pattern = each.value.pattern
+
+  depends_on = [github_repository_environment.environment]
 }
