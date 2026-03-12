@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gr-oss-devops/github-repo-importer/pkg/github"
 	"github.com/invopop/jsonschema"
 	"github.com/spf13/cobra"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
@@ -35,7 +34,7 @@ var schemaCmd = &cobra.Command{
 			FieldNameTag:              "yaml",
 		}
 
-		schema := reflector.Reflect(&github.Repository{})
+		schema := reflector.Reflect(&RepositoryWithExpansionConfig{})
 		schema.Title = "Repository Configuration"
 		schema.ID = jsonschema.ID(fmt.Sprintf("https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s", outDir, outFile))
 
@@ -82,6 +81,15 @@ var schemaCmd = &cobra.Command{
 		if ok && ruleDef != nil {
 			ruleDef.Not = &jsonschema.Schema{
 				Required: []string{"branch_name_pattern", "tag_name_pattern"},
+			}
+		}
+
+		repoDef, ok := schema.Definitions["RepositoryWithExpansionConfig"]
+		if ok && repoDef != nil && repoDef.Properties != nil {
+			for _, field := range []string{"admin_collaborators", "admin_teams"} {
+				if prop, exists := repoDef.Properties.Get(field); exists {
+					prop.Deprecated = true
+				}
 			}
 		}
 

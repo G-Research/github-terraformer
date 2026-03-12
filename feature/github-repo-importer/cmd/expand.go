@@ -106,7 +106,7 @@ func expandFile(input, output string) error {
 		return fmt.Errorf("failed to read input file: %w", err)
 	}
 
-	expanded, err := expandYAML(data)
+	expanded, err := expandYAML(data, input)
 	if err != nil {
 		return fmt.Errorf("failed to expand YAML: %w", err)
 	}
@@ -119,12 +119,22 @@ func expandFile(input, output string) error {
 	return nil
 }
 
-func expandYAML(data []byte) ([]byte, error) {
+func warnDeprecatedFields(repo *RepositoryWithExpansionConfig, filename string) {
+	if len(repo.AdminCollaborators) > 0 {
+		fmt.Fprintf(os.Stderr, "WARNING: %s: field 'admin_collaborators' will be deprecated in a future version\n", filename)
+	}
+	if len(repo.AdminTeams) > 0 {
+		fmt.Fprintf(os.Stderr, "WARNING: %s: field 'admin_teams' will be deprecated in a future version\n", filename)
+	}
+}
+
+func expandYAML(data []byte, filename string) ([]byte, error) {
 	var repoWithExpansion RepositoryWithExpansionConfig
 	if err := yaml.Unmarshal(data, &repoWithExpansion); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
+	warnDeprecatedFields(&repoWithExpansion, filename)
 	expandRulesets(&repoWithExpansion)
 	repoWithExpansion.HighIntegrity = nil
 

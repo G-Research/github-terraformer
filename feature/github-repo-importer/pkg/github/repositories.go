@@ -30,11 +30,13 @@ type Repository struct {
 	TriageCollaborators        []string              `yaml:"triage_collaborators,omitempty"`
 	PushCollaborators          []string              `yaml:"push_collaborators,omitempty"`
 	MaintainCollaborators      []string              `yaml:"maintain_collaborators,omitempty"`
+	// Deprecated: AdminCollaborators will be removed in a future version.
 	AdminCollaborators         []string              `yaml:"admin_collaborators,omitempty"`
 	PullTeams                  []string              `yaml:"pull_teams,omitempty"`
 	TriageTeams                []string              `yaml:"triage_teams,omitempty"`
 	PushTeams                  []string              `yaml:"push_teams,omitempty"`
 	MaintainTeams              []string              `yaml:"maintain_teams,omitempty"`
+	// Deprecated: AdminTeams will be removed in a future version.
 	AdminTeams                 []string              `yaml:"admin_teams,omitempty"`
 	LicenseTemplate            *string               `yaml:"license_template,omitempty"`
 	GitignoreTemplate          *string               `yaml:"gitignore_template,omitempty"`

@@ -15,7 +15,7 @@ func TestExpandYAML_NoHighIntegrity(t *testing.T) {
 visibility: public
 default_branch: main`
 
-	result, err := expandYAML([]byte(input))
+	result, err := expandYAML([]byte(input), "test")
 	require.NoError(t, err)
 
 	var output map[string]interface{}
@@ -38,7 +38,7 @@ default_branch: main
 high_integrity:
   enabled: true`
 
-	result, err := expandYAML([]byte(input))
+	result, err := expandYAML([]byte(input), "test")
 	require.NoError(t, err)
 
 	var output map[string]interface{}
@@ -104,7 +104,7 @@ func TestExpandYAML_HighIntegrityDisabled(t *testing.T) {
 high_integrity:
   enabled: false`
 
-	result, err := expandYAML([]byte(input))
+	result, err := expandYAML([]byte(input), "test")
 	require.NoError(t, err)
 
 	var output map[string]interface{}
@@ -129,7 +129,7 @@ rulesets:
 high_integrity:
   enabled: true`
 
-	result, err := expandYAML([]byte(input))
+	result, err := expandYAML([]byte(input), "test")
 	require.NoError(t, err)
 
 	var output map[string]interface{}
@@ -151,7 +151,7 @@ archived: false
 description: Test
 default_branch: main`
 
-	result, err := expandYAML([]byte(input))
+	result, err := expandYAML([]byte(input), "test")
 	require.NoError(t, err)
 
 	// Parse as string to check order
@@ -173,7 +173,7 @@ func TestExpandYAML_InvalidYAML(t *testing.T) {
   - missing
     quotes`
 
-	_, err := expandYAML([]byte(input))
+	_, err := expandYAML([]byte(input), "test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse YAML")
 }

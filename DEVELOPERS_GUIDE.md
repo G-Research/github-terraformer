@@ -76,7 +76,7 @@ These are the primary configuration options for each repository.
 
 - **`maintain_collaborators`**: *(optional, string[])* A list of users with maintain access to the repository.
 
-- **`admin_collaborators`**: *(optional, string[])* A list of users with admin access to the repository.
+- **`admin_collaborators`**: *(optional, string[])* A list of users with admin access to the repository. **Deprecated:** this field will be removed in a future version.
 
 - **`pull_teams`**: *(optional, string[])* A list of teams with pull access to the repository.
 
@@ -86,7 +86,7 @@ These are the primary configuration options for each repository.
 
 - **`maintain_teams`**: *(optional, string[])* A list of teams with maintain access to the repository.
 
-- **`admin_teams`**: *(optional, string[])* A list of teams with admin access to the repository.
+- **`admin_teams`**: *(optional, string[])* A list of teams with admin access to the repository. **Deprecated:** this field will be removed in a future version.
 
 - **`license_template`**: *(optional, string)* The license template to use for the repository. Use the [name of the template](https://github.com/github/choosealicense.com/tree/gh-pages/_licenses) without the extension. For example, "mit" or "mpl-2.0".
 
@@ -101,6 +101,28 @@ These are the primary configuration options for each repository.
 - **`vulnerability_alerts_enabled`**: *(optional, boolean)* If `true`, vulnerability alerts are enabled.
 
 - **`branch_protections_v4`**: *(optional, object[] [BranchProtectionV4](#branch-protection-configuration-v4))* Configuration for branch protection rules.
+
+- **`high_integrity`**: *(optional, object [HighIntegrity](#high-integrity-configuration))* Expansion directives for high-integrity repositories. This field is consumed by the `expand` command and is **not** passed to Terraform — it is removed from the output after expansion.
+
+## High Integrity Configuration
+
+Options for enabling high-integrity mode on a repository. This block is a pre-processing directive consumed by the `expand` command — it is **not** forwarded to Terraform.
+
+When `enabled` is `true`, the `expand` command automatically appends two rulesets to the repository's `rulesets` list:
+
+- **Protect main branch** — an active branch ruleset targeting `~DEFAULT_BRANCH` that enforces deletion protection, no fast-forward pushes, linear history, and a pull request review policy (1 approver, stale review dismissal on push, last-push approval required).
+- **Make tags immutable** — an active tag ruleset targeting `~ALL` that prevents deletion, non-fast-forward updates, and tag updates.
+
+The `high_integrity` block is then removed from the expanded output.
+
+- **`enabled`**: *(required, boolean)* If `true`, the two high-integrity rulesets are injected during expansion.
+
+Example:
+
+```yaml
+high_integrity:
+  enabled: true
+```
 
 ## Template Configuration
 

@@ -222,6 +222,7 @@ variable "admin_collaborators" {
   description = "(Optional) A list of users to add as collaborators granting them admin (full) permission."
   type        = list(string)
   default     = []
+  deprecated  = "admin_collaborators will be removed in a future version."
 }
 
 variable "push_collaborators" {
@@ -282,6 +283,7 @@ variable "admin_teams" {
   description = "(Optional) A list of teams (by name/slug) to grant admin (full) permission to."
   type        = list(string)
   default     = []
+  deprecated  = "admin_teams will be removed in a future version."
 }
 
 variable "push_teams" {

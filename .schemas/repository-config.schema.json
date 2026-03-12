@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/.schemas/repository-config.schema.json",
-  "$ref": "#/$defs/Repository",
+  "$ref": "#/$defs/RepositoryWithExpansionConfig",
   "$defs": {
     "BranchProtectionV4": {
       "properties": {
@@ -89,6 +89,18 @@
       "type": "object",
       "required": [
         "ref_name"
+      ]
+    },
+    "HighIntegrityConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "enabled"
       ]
     },
     "Pages": {
@@ -209,7 +221,23 @@
         "include"
       ]
     },
-    "Repository": {
+    "RepositoryTemplate": {
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "owner",
+        "repository"
+      ]
+    },
+    "RepositoryWithExpansionConfig": {
       "properties": {
         "description": {
           "type": "string"
@@ -333,7 +361,8 @@
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "deprecated": true
         },
         "pull_teams": {
           "items": {
@@ -363,7 +392,8 @@
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "deprecated": true
         },
         "license_template": {
           "type": "string"
@@ -391,28 +421,15 @@
             "$ref": "#/$defs/BranchProtectionV4"
           },
           "type": "array"
+        },
+        "high_integrity": {
+          "$ref": "#/$defs/HighIntegrityConfig"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "default_branch"
-      ]
-    },
-    "RepositoryTemplate": {
-      "properties": {
-        "owner": {
-          "type": "string"
-        },
-        "repository": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "owner",
-        "repository"
       ]
     },
     "RequiredCheck": {
