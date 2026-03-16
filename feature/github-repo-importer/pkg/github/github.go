@@ -655,15 +655,18 @@ func resolveActorName(actor *github.BypassActor, roleActors map[int64]string, te
 }
 
 func resolvePages(pages *github.Pages) *Pages {
-	if pages != nil {
-		return &Pages{
-			CNAME:     pages.CNAME,
-			Branch:    pages.GetSource().Branch,
-			Path:      pages.GetSource().Path,
-			BuildType: pages.BuildType,
-		}
+	if pages == nil {
+		return nil
 	}
-	return nil
+	resolved := &Pages{
+		CNAME:     pages.CNAME,
+		BuildType: pages.BuildType,
+	}
+	if pages.GetBuildType() != "workflow" {
+		resolved.Branch = pages.GetSource().Branch
+		resolved.Path = pages.GetSource().Path
+	}
+	return resolved
 }
 
 func resolveRepositoryTemplate(githubRepository *github.Repository) *RepositoryTemplate {

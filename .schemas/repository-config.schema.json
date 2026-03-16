@@ -144,7 +144,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "branch",
         "build_type"
       ]
     },

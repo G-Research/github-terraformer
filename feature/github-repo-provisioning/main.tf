@@ -181,8 +181,8 @@ module "repository" {
   topics                  = try(each.value.topics,                  [])
   archive_on_destroy      = try(each.value.archive_on_destroy,      null)
   pages                   = try(contains(keys(each.value), "pages") && try(each.value.pages != null, false) ? {
-                              branch      = try(each.value.pages.branch, "gh-pages")
-                              path        = try(each.value.pages.path,   "/")
+                              branch      = try(each.value.pages.build_type, null) == "workflow" ? null : try(each.value.pages.branch, "gh-pages")
+                              path        = try(each.value.pages.build_type, null) == "workflow" ? null : try(each.value.pages.path, "/")
                               cname       = try(each.value.pages.cname,  null)
                               build_type  = try(each.value.pages.build_type,  null)
                             } : null)

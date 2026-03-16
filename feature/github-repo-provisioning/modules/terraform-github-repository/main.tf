@@ -136,9 +136,12 @@ resource "github_repository" "repository" {
 
     content {
       build_type = var.pages.build_type
-      source {
-        branch = var.pages.branch
-        path   = try(var.pages.path, "/")
+      dynamic "source" {
+        for_each = try(var.pages.build_type, null) != "workflow" ? [true] : []
+        content {
+          branch = var.pages.branch
+          path   = try(var.pages.path, "/")
+        }
       }
       cname = try(var.pages.cname, null)
     }

@@ -136,15 +136,15 @@ Options for configuring a repository from a template.
 
 Options for configuring GitHub Pages.
 
+- **`build_type`**: *(required, string)* The build type for GitHub Pages. Possible values:
+  - `workflow` - Pages are deployed via a GitHub Actions workflow. Only `cname` and `build_type` are required; `branch` and `path` must not be set.
+  - `legacy` - Pages are deployed from a branch. `branch` is required in addition to `build_type`.
+
 - **`cname`**: *(optional, string)* The custom domain for GitHub Pages.
 
-- **`branch`**: *(required, string)* The branch to use for GitHub Pages.
+- **`branch`**: *(required when `build_type` is `legacy`, string)* The branch to use for GitHub Pages.
 
-- **`path`**: *(optional, string)* The directory path for GitHub Pages content.
-
-- **`build_type`**: *(required, string)* The build type for GitHub Pages. Possible values:
-  - `workflow` - For deploying pages by Github Actions workflow
-  - `legacy` - For manual deployment using the `gh-pages` branch
+- **`path`**: *(optional, string)* The directory path for GitHub Pages content. Only applicable when `build_type` is `legacy`.
 
 ## Ruleset Configuration
 

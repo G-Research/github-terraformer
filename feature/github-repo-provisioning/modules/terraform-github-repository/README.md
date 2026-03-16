@@ -21,6 +21,7 @@ This module is a **vendored version** of the original Terraform module from [min
 - Improved handling of null values with the `try` function.
 - Changed default values for `enforce_admins`, `require_code_owner_reviews`, and `dismiss_stale_reviews`.
 - Fixed handling of blocks `required_status_checks`, `required_pull_request_reviews` and `restrict_pushes`
+- Made `pages.source` block conditional — it is omitted when `pages.build_type` is `workflow`, as branch and path are not required in that case.
 
 These changes enhance flexibility and allow for more granular control over branch protection rules.
 

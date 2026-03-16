@@ -54,7 +54,7 @@ type RepositoryTemplate struct {
 
 type Pages struct {
 	CNAME     *string `yaml:"cname,omitempty"`
-	Branch    *string `yaml:"branch,omitempty" jsonschema:"required"`
+	Branch    *string `yaml:"branch,omitempty"`
 	Path      *string `yaml:"path,omitempty"`
 	BuildType *string `yaml:"build_type,omitempty" jsonschema:"required,enum=workflow,enum=legacy"`
 }

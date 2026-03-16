@@ -258,18 +258,32 @@ func TestResolvePages(t *testing.T) {
 		expected *Pages
 	}{
 		{
-			name: "valid pages configuration",
+			name: "legacy build type includes branch and path",
 			input: &github.Pages{
-				CNAME: github.String("example.com"),
+				CNAME:     github.String("example.com"),
+				BuildType: github.String("legacy"),
 				Source: &github.PagesSource{
 					Branch: github.String("gh-pages"),
 					Path:   github.String("/docs"),
 				},
 			},
 			expected: &Pages{
-				CNAME:  github.String("example.com"),
-				Branch: github.String("gh-pages"),
-				Path:   github.String("/docs"),
+				CNAME:     github.String("example.com"),
+				BuildType: github.String("legacy"),
+				Branch:    github.String("gh-pages"),
+				Path:      github.String("/docs"),
+			},
+		},
+		{
+			name: "workflow build type omits branch and path",
+			input: &github.Pages{
+				CNAME:     github.String("example.com"),
+				BuildType: github.String("workflow"),
+				Source:    &github.PagesSource{},
+			},
+			expected: &Pages{
+				CNAME:     github.String("example.com"),
+				BuildType: github.String("workflow"),
 			},
 		},
 		{
