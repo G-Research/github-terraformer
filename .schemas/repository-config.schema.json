@@ -91,6 +91,74 @@
         "ref_name"
       ]
     },
+    "Environment": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "wait_timer": {
+          "type": "integer"
+        },
+        "can_admins_bypass": {
+          "type": "boolean"
+        },
+        "prevent_self_review": {
+          "type": "boolean"
+        },
+        "reviewers": {
+          "$ref": "#/$defs/EnvironmentReviewers"
+        },
+        "deployment_policy": {
+          "$ref": "#/$defs/EnvironmentDeploymentPolicy"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "environment"
+      ]
+    },
+    "EnvironmentDeploymentPolicy": {
+      "properties": {
+        "policy_type": {
+          "type": "string",
+          "enum": [
+            "all",
+            "protected_branches",
+            "selected_branches_and_tags"
+          ]
+        },
+        "branch_patterns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "policy_type"
+      ]
+    },
+    "EnvironmentReviewers": {
+      "properties": {
+        "users": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "teams": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "HighIntegrityConfig": {
       "properties": {
         "enabled": {
@@ -418,6 +486,12 @@
         "branch_protections_v4": {
           "items": {
             "$ref": "#/$defs/BranchProtectionV4"
+          },
+          "type": "array"
+        },
+        "environments": {
+          "items": {
+            "$ref": "#/$defs/Environment"
           },
           "type": "array"
         },

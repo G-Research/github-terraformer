@@ -148,6 +148,11 @@ func ImportRepo(repoName string) (*Repository, error) {
 		fmt.Printf("failed to decode apps list: %v\n", err)
 	}
 
+	environments, err := fetchEnvironments(repoNameSplit[0], repoNameSplit[1], orgTeams)
+	if err != nil {
+		fmt.Printf("failed to fetch environments: %v\n", err)
+	}
+
 	roleActors := getRoleActors()
 	teamActors := getTeamActors(orgTeams)
 	appActors := getAppActors(appsList)
@@ -200,6 +205,7 @@ func ImportRepo(repoName string) (*Repository, error) {
 		Rulesets:                   resolvedRulesets,
 		VulnerabilityAlertsEnabled: &vulnerabilityAlertsEnabled,
 		BranchProtectionsV4:        resolveBranchProtectionsFromGraphQL(&branchProtectionRulesGraphQLQuery),
+		Environments:               environments,
 	}, nil
 }
 

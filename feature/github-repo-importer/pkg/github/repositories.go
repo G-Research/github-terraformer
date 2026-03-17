@@ -45,6 +45,30 @@ type Repository struct {
 	Rulesets                   []Ruleset             `yaml:"rulesets,omitempty"`
 	VulnerabilityAlertsEnabled *bool                 `yaml:"vulnerability_alerts_enabled,omitempty"`
 	BranchProtectionsV4        []*BranchProtectionV4 `yaml:"branch_protections_v4,omitempty"`
+	Environments               []Environment         `yaml:"environments,omitempty"`
+}
+
+// Environment represents a GitHub deployment environment.
+type Environment struct {
+	Environment       string                       `yaml:"environment" jsonschema:"required"`
+	WaitTimer         *int                         `yaml:"wait_timer,omitempty"`
+	CanAdminsBypass   *bool                        `yaml:"can_admins_bypass,omitempty"`
+	PreventSelfReview *bool                        `yaml:"prevent_self_review,omitempty"`
+	Reviewers         *EnvironmentReviewers        `yaml:"reviewers,omitempty"`
+	DeploymentPolicy  *EnvironmentDeploymentPolicy `yaml:"deployment_policy,omitempty"`
+}
+
+// EnvironmentReviewers holds the teams and users required to approve deployments.
+type EnvironmentReviewers struct {
+	Users []string `yaml:"users,omitempty"`
+	Teams []string `yaml:"teams,omitempty"`
+}
+
+// EnvironmentDeploymentPolicy controls which branches/tags can deploy to the environment.
+type EnvironmentDeploymentPolicy struct {
+	// PolicyType is one of: "all", "protected_branches", "selected_branches_and_tags"
+	PolicyType     string   `yaml:"policy_type" jsonschema:"required,enum=all,enum=protected_branches,enum=selected_branches_and_tags"`
+	BranchPatterns []string `yaml:"branch_patterns,omitempty"`
 }
 
 type RepositoryTemplate struct {
