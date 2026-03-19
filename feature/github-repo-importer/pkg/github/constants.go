@@ -33,6 +33,15 @@ const (
 
 	DefaultPageSize = 100
 
+	// Feature flags
+	// All feature flags follow the pattern: feature_<feature_name>
+	// Add new features here and they'll automatically work with the config system
+	FeatureGithubEnvironment = "feature_github_environment"
+	// Example future features:
+	// FeatureGithubWebhooks    = "feature_github_webhooks"
+	// FeatureGithubSecrets     = "feature_github_secrets"
+	// FeatureGithubTopics      = "feature_github_topics"
+
 	BypassActorType_RepositoryRole            = "RepositoryRole"
 	BypassActorType_OrganizationAdmin         = "OrganizationAdmin"
 	BypassActorType_Team                      = "Team"

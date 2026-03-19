@@ -45,6 +45,7 @@ type Repository struct {
 	Rulesets                   []Ruleset             `yaml:"rulesets,omitempty"`
 	VulnerabilityAlertsEnabled *bool                 `yaml:"vulnerability_alerts_enabled,omitempty"`
 	BranchProtectionsV4        []*BranchProtectionV4 `yaml:"branch_protections_v4,omitempty"`
+	Environments               []Environment         `yaml:"environments,omitempty"`
 }
 
 type RepositoryTemplate struct {
@@ -58,3 +59,4 @@ type Pages struct {
 	Path      *string `yaml:"path,omitempty"`
 	BuildType *string `yaml:"build_type,omitempty" jsonschema:"required,enum=workflow,enum=legacy"`
 }
+

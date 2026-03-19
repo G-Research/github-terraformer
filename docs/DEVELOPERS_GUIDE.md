@@ -100,29 +100,38 @@ These are the primary configuration options for each repository.
 
 - **`vulnerability_alerts_enabled`**: *(optional, boolean)* If `true`, vulnerability alerts are enabled.
 
+- **`environments`**: *(optional, object[] [Environment](#environment-configuration))* Configuration for repository environments. Requires `feature_github_environment: true` in import config. When imported, environments are automatically managed by Terraform.
+
 - **`branch_protections_v4`**: *(optional, object[] [BranchProtectionV4](#branch-protection-configuration-v4))* Configuration for branch protection rules.
 
-- **`high_integrity`**: *(optional, object [HighIntegrity](#high-integrity-configuration))* Expansion directives for high-integrity repositories. This field is consumed by the `expand` command and is **not** passed to Terraform — it is removed from the output after expansion.
+## Environment Configuration
 
-## High Integrity Configuration
+### Environment Fields
 
-Options for enabling high-integrity mode on a repository. This block is a pre-processing directive consumed by the `expand` command — it is **not** forwarded to Terraform.
+- **`environment`**: *(required, string)* Environment name
+- **`wait_timer`**: *(optional, int)* Delay in minutes (max 43200 or 30 days)
+- **`can_admins_bypass`**: *(optional, bool)* Admin bypass allowed (default: true)
+- **`prevent_self_review`**: *(optional, bool)* Prevent self-approval (default: false)
+- **`reviewers`**: *(optional, object)*
+  - **`users`**: *(string[])* GitHub usernames (max 6 total)
+  - **`teams`**: *(string[])* Team slugs (max 6 total)
 
-When `enabled` is `true`, the `expand` command automatically appends two rulesets to the repository's `rulesets` list:
+  > ⚠️ **IMPORTANT: Team Access Requirement**
+  >
+  > Teams specified as reviewers MUST have repository access first!
+  > - Manually grant access at: `https://github.com/{org}/{repo}/settings/access`
+  > - Verify team access at: `https://github.com/orgs/{org}/teams/{team}/repositories`
+  >
+  > **Without repository access, Terraform will apply successfully but teams won't be added as reviewers and next plan/apply will show them as proposed changes**
 
-- **Protect main branch** — an active branch ruleset targeting `~DEFAULT_BRANCH` that enforces deletion protection, no fast-forward pushes, linear history, and a pull request review policy (1 approver, stale review dismissal on push, last-push approval required).
-- **Make tags immutable** — an active tag ruleset targeting `~ALL` that prevents deletion, non-fast-forward updates, and tag updates.
+- **`deployment_policy`**: *(optional, object)* Controls which branches/tags can deploy to this environment
+  - **`policy_type`**: *(required, string)* Must be one of:
+    - `"protected_branches"` - Only protected branches can deploy
+    - `"selected_branches_and_tags"` - Specific branch/tag patterns can deploy
+  - **`branch_patterns`**: *(optional, string[])* Branch patterns (e.g., `["main", "release/*"]`). Only used when `policy_type` is `"selected_branches_and_tags"`. Set to `null` or omit when using `"protected_branches"`
+  - **`tag_patterns`**: *(optional, string[])* Tag patterns (e.g., `["v*"]`). Only used when `policy_type` is `"selected_branches_and_tags"`. Set to `null` or omit when using `"protected_branches"`
 
-The `high_integrity` block is then removed from the expanded output.
-
-- **`enabled`**: *(required, boolean)* If `true`, the two high-integrity rulesets are injected during expansion.
-
-Example:
-
-```yaml
-high_integrity:
-  enabled: true
-```
+**📖 For complete guide with examples, see [FEATURE_GITHUB_ENVIRONMENT.md](FEATURE_GITHUB_ENVIRONMENT.md)**
 
 ## Template Configuration
 
