@@ -75,6 +75,20 @@ jobs:
           checkout-sha: ${{ inputs.commit_sha }}
           checkout-token: ${{ secrets.gh_token }}
 
+      - name: Get PR number
+        id: get-pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.gh_token }}
+          script: |
+            const prs = context.payload.workflow_run.pull_requests;
+            if (prs && prs.length > 0) {
+              core.setOutput('pr-number', prs[0].number);
+              console.log(`PR number: ${prs[0].number}`);
+            } else {
+              console.log('No PR found in workflow_run context');
+            }
+
       - name: Setup terraform and run plan
         uses: ./.github/actions/graformer
         id: graformer
@@ -82,6 +96,7 @@ jobs:
           tfc-token: ${{ secrets.tfc_token }}
           tfc-organization: ${{ inputs.tfc_org }}
           tfc-workspace: ${{ vars.WORKSPACE }}
+          pr-number: ${{ steps.get-pr.outputs.pr-number }}
 
       - name: Post plan summary and handle check-run
         if: always()

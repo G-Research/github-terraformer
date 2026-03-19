@@ -14,6 +14,22 @@ inputs:
     description: "Whether to keep the plan file after execution (true/false). Default is false."
     required: false
     default: "false"
+  skip-targeting:
+    description: "Skip target detection and run full plan (e.g., for drift-check). Default is false."
+    required: false
+    default: "false"
+  pr-number:
+    description: "Pull request number to get changed files from (uses gh cli). If not provided, uses git diff."
+    required: false
+    default: ""
+  base-ref:
+    description: "Base git ref for detecting changes. Default is HEAD~1 for post-merge, origin/main for PRs."
+    required: false
+    default: ""
+  head-ref:
+    description: "Head git ref for detecting changes. Default is HEAD."
+    required: false
+    default: "HEAD"
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
@@ -27,6 +43,68 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        cache-dependency-path: feature/github-repo-importer/go.sum
+
+    - name: Build target detector CLI
+      shell: bash
+      working-directory: feature/github-repo-importer
+      run: |
+        echo "Building importer CLI..."
+        go build -o importer .
+        chmod +x importer
+        echo "CLI built successfully"
+
+    - name: Detect terraform targets
+      id: detect-targets
+      if: inputs.skip-targeting != 'true'
+      shell: bash
+      working-directory: feature/github-repo-provisioning/gcss_config
+      run: |
+        # Determine base-ref based on context
+        if [[ -n "${{ inputs.base-ref }}" ]]; then
+          BASE_REF="${{ inputs.base-ref }}"
+        elif [[ -n "${{ inputs.pr-number }}" ]]; then
+          # For PR context, compare against main
+          BASE_REF="origin/main"
+        else
+          # For post-merge, compare against previous commit
+          BASE_REF="HEAD~1"
+        fi
+
+        echo "Detecting targets..."
+        echo "Base ref: ${BASE_REF}"
+        echo "Head ref: ${{ inputs.head-ref }}"
+
+        # Build the command
+        CMD="../../github-repo-importer/importer detect-targets"
+        CMD="$CMD --base-ref=${BASE_REF}"
+        CMD="$CMD --head-ref=${{ inputs.head-ref }}"
+        CMD="$CMD --repos-dir=repos"
+        CMD="$CMD --importer-dir=importer_tmp_dir"
+        CMD="$CMD --output-file=terraform-targets.txt"
+        CMD="$CMD --verbose"
+
+        # Add PR number if provided
+        if [[ -n "${{ inputs.pr-number }}" ]]; then
+          CMD="$CMD --pr-number=${{ inputs.pr-number }}"
+        fi
+
+        # Run the detection
+        $CMD 2>&1
+
+        # Check if targets file exists and has content
+        if [[ -f terraform-targets.txt && -s terraform-targets.txt ]]; then
+          echo "use-targets=true" >> $GITHUB_OUTPUT
+          echo "Targets will be used for terraform plan"
+        else
+          echo "use-targets=false" >> $GITHUB_OUTPUT
+          echo "Full terraform plan will be executed"
+        fi
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
@@ -73,7 +151,24 @@ runs:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
-        terraform plan -no-color -input=false -out=tfplan
+        # Read targets from file if targeting is enabled
+        TARGETS=""
+        TARGETS_FILE="gcss_config/terraform-targets.txt"
+
+        if [[ "${{ inputs.skip-targeting }}" == "true" ]]; then
+          echo "Targeting disabled - running full plan"
+        elif [[ -f "$TARGETS_FILE" && -s "$TARGETS_FILE" ]]; then
+          TARGETS=$(cat "$TARGETS_FILE")
+          TARGET_COUNT=$(echo "$TARGETS" | wc -w | tr -d ' ')
+          echo "Running targeted plan with ${TARGET_COUNT} targets"
+          echo "Targets: ${TARGETS}"
+        else
+          echo "No targets file or empty - running full plan"
+        fi
+
+        # Run terraform plan with or without targets
+        terraform plan -no-color -input=false -out=tfplan $TARGETS
+
         if [[ "${{ inputs.keep-plan }}" == "true" ]]; then
           echo "plan-file=$(pwd)/tfplan" >> $GITHUB_OUTPUT
         fi
@@ -157,7 +252,8 @@ runs:
     - name: Clean up
       shell: bash
       run: |
-        rm feature/github-repo-provisioning/tfplan.json
+        rm -f feature/github-repo-provisioning/tfplan.json
+        rm -f feature/github-repo-provisioning/gcss_config/terraform-targets.txt
         if [[ "${{ inputs.keep-plan }}" == "false" ]]; then
           rm -f "${{ steps.plan.outputs.plan-file }}"
         fi
