@@ -335,19 +335,28 @@ locals {
   }
 
   all_rulesets_map = merge(local.new_rulesets_map, local.generated_rulesets_map)
+
+  all_rulesets_by_repo = {
+    for repo in distinct([for v in values(local.all_rulesets_map) : v.repository]) :
+    repo => {
+      for k, v in local.all_rulesets_map : k => v
+      if v.repository == repo
+    }
+  }
 }
 
 import {
   for_each = local.generated_rulesets_map
-  to       = module.rulesets.github_repository_ruleset.ruleset[each.key]
+  to       = module.rulesets[each.value.repository].github_repository_ruleset.ruleset[each.key]
   id       = format("%s:%s", each.value.repository, each.value.ruleset.id)
 }
 
 module "rulesets" {
   source     = "./modules/terraform-github-rulesets"
+  for_each   = local.all_rulesets_by_repo
   depends_on = [module.repository]
 
-  rulesets = local.all_rulesets_map
+  rulesets = each.value
   apps_map = local.apps_map
   # ruleset_actors and builtin_github_sources use module defaults
 }

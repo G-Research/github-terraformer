@@ -3,3 +3,8 @@ clean:
 
 init:
   terraform init
+
+# Print terraform state mv commands to migrate rulesets to per-repo module instances.
+# Review the output, then pipe to sh to execute: just generate-state-mv | sh
+generate-state-mv:
+  bash generate-state-mv.sh
