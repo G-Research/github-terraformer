@@ -102,6 +102,8 @@ These are the primary configuration options for each repository.
 
 - **`branch_protections_v4`**: *(optional, object[] [BranchProtectionV4](#branch-protection-configuration-v4))* Configuration for branch protection rules.
 
+- **`custom_properties`**: *(optional, map[string]string)* A map of GitHub organization custom property names to their string values. See [Custom Properties](#custom-properties).
+
 - **`high_integrity`**: *(optional, object [HighIntegrity](#high-integrity-configuration))* Expansion directives for high-integrity repositories. This field is consumed by the `expand` command and is **not** passed to Terraform — it is removed from the output after expansion.
 
 ## High Integrity Configuration
@@ -123,6 +125,35 @@ Example:
 high_integrity:
   enabled: true
 ```
+
+## Custom Properties
+
+A map of [GitHub organization custom property](https://docs.github.com/en/organizations/managing-organization-settings/managing-custom-properties-for-repositories-in-your-organization) names to their string values. Custom properties must be defined at the organization level before they can be set on a repository.
+
+Each key is the property name and each value is a string. Only `string`-type custom properties are supported.
+
+Example:
+
+```yaml
+custom_properties:
+  oss_lifecycle: active
+  team: platform
+```
+
+### GR-OSS: `oss_lifecycle`
+
+The `oss_lifecycle` property is used by GR-OSS to track the lifecycle stage of a repository. Allowed values are:
+
+- `published` — Newly released project. Assigned for the first 90 days after public release.
+- `active` — Project is actively developed and maintained. Regular releases and community engagement.
+- `contributing` — We contribute to an upstream project we don't own. Tracks participation in external projects.
+- `maintained` — Stable project receiving security patches and dependency updates, but no active feature development.
+- `evaluating` — Project under review to determine next steps. 90-day review cycle.
+- `deprecated` — No longer recommended for use. Not maintained. Should include migration guidance.
+- `archived` — Read-only. No further development, patches, or support.
+
+> [!NOTE]
+> A supplementary JSON schema enforcing these values is available at `.schemas/repository-config.gr-oss.schema.json`.
 
 ## Template Configuration
 
