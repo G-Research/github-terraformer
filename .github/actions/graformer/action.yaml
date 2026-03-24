@@ -14,6 +14,9 @@ inputs:
     description: "Whether to keep the plan file after execution (true/false). Default is false."
     required: false
     default: "false"
+  refresh:
+    description: "Whether to refresh state before running plan (true/false). Set to true for drift detection."
+    required: true
 outputs:
   plan-exitcode:
     description: "Plan detailed exit code (0 - success, empty diff; 1 - error; 2 - success, non-empty diff)"
@@ -73,7 +76,7 @@ runs:
         TF_CLOUD_ORGANIZATION: ${{ inputs.tfc-organization }}
         TF_WORKSPACE: ${{ inputs.tfc-workspace }}
       run: |
-        terraform plan -no-color -input=false -out=tfplan
+        terraform plan -no-color -input=false -out=tfplan -refresh=${{ inputs.refresh }}
         if [[ "${{ inputs.keep-plan }}" == "true" ]]; then
           echo "plan-file=$(pwd)/tfplan" >> $GITHUB_OUTPUT
         fi
