@@ -45,6 +45,7 @@ type Repository struct {
 	Rulesets                   []Ruleset             `yaml:"rulesets,omitempty"`
 	VulnerabilityAlertsEnabled *bool                 `yaml:"vulnerability_alerts_enabled,omitempty"`
 	BranchProtectionsV4        []*BranchProtectionV4 `yaml:"branch_protections_v4,omitempty"`
+	CustomProperties           map[string]string     `yaml:"custom_properties,omitempty"`
 }
 
 type RepositoryTemplate struct {

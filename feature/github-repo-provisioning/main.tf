@@ -547,3 +547,57 @@ resource "github_repository_ruleset" "ruleset" {
     }
   }
 }
+
+locals {
+  new_custom_properties_flattened = flatten([
+    for repo, config in local.new_repos : [
+      for prop_name, prop_value in try(config.custom_properties, {}) : {
+        repository     = repo
+        property_name  = prop_name
+        property_value = prop_value
+      }
+    ]
+  ])
+
+  new_custom_properties_map = {
+    for item in local.new_custom_properties_flattened :
+    "${item.repository}/${item.property_name}" => item
+  }
+
+  generated_custom_properties_flattened = flatten([
+    for repo, config in local.generated_repos : [
+      for prop_name, prop_value in try(config.custom_properties, {}) : {
+        repository     = repo
+        property_name  = prop_name
+        property_value = prop_value
+      }
+    ]
+  ])
+
+  generated_custom_properties_map = {
+    for item in local.generated_custom_properties_flattened :
+    "${item.repository}/${item.property_name}" => item
+  }
+
+  all_custom_properties_map = merge(local.new_custom_properties_map, local.generated_custom_properties_map)
+}
+
+import {
+  for_each = local.generated_custom_properties_map
+  to = github_repository_custom_property.custom_property[each.key]
+  id = format("%s:%s:%s", var.owner, each.value.repository, each.value.property_name)
+}
+
+resource "github_repository_custom_property" "custom_property" {
+  depends_on = [module.repository]
+  for_each   = local.all_custom_properties_map
+
+  repository     = each.value.repository
+  property_name  = each.value.property_name
+  property_type  = "string"
+  property_value = [each.value.property_value]
+
+  lifecycle {
+    ignore_changes = [property_type] # At this moment the provider does not support updates to the property_type field, so we set it to a default value and ignore changes to it
+  }
+}
