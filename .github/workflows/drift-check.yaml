@@ -43,6 +43,7 @@ jobs:
           tfc-token: ${{ secrets.tfc_token }}
           tfc-organization: ${{ inputs.tfc_org }}
           tfc-workspace: ${{ vars.WORKSPACE }}
+          refresh: 'true'
 
         # 0 for green plan no changes, 2 for green plan with changes
       - name: Inspect drift
