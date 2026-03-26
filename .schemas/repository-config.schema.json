@@ -421,6 +421,12 @@
           },
           "type": "array"
         },
+        "custom_properties": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
         "high_integrity": {
           "$ref": "#/$defs/HighIntegrityConfig"
         }

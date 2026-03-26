@@ -120,6 +120,8 @@ runs:
               return `${resourceChange.type} :: ${match[1]}/${actualChange.pattern}`;
             }else if(resourceChange.type === 'github_repository_environment'){
               return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.environment}`;
+            }else if(resourceChange.type === 'github_repository_custom_property'){
+              return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.property_name}`;
             } else {
                 return `unknown type ${resourceChange.type}. resource address: ${resourceChange.address}`
             }

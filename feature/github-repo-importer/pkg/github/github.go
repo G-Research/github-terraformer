@@ -157,6 +157,11 @@ func ImportRepo(repoName string) (*Repository, error) {
 		fmt.Printf("failed to resolve rulesets: %v\n", err)
 	}
 
+	customProperties, err := FetchCustomProperties(v3client, repoNameSplit[0], repoNameSplit[1], dumpManager)
+	if err != nil {
+		fmt.Printf("failed to fetch custom properties: %v\n", err)
+	}
+
 	return &Repository{
 		Name:                       repo.GetName(),
 		Owner:                      repo.GetOwner().GetLogin(),
@@ -200,6 +205,7 @@ func ImportRepo(repoName string) (*Repository, error) {
 		Rulesets:                   resolvedRulesets,
 		VulnerabilityAlertsEnabled: &vulnerabilityAlertsEnabled,
 		BranchProtectionsV4:        resolveBranchProtectionsFromGraphQL(&branchProtectionRulesGraphQLQuery),
+		CustomProperties:           customProperties,
 	}, nil
 }
 
