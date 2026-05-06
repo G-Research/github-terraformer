@@ -201,6 +201,7 @@ func ImportRepo(repoName string) (*Repository, error) {
 		LicenseTemplate:            repo.LicenseTemplate,
 		GitignoreTemplate:          repo.GitignoreTemplate,
 		Template:                   resolveRepositoryTemplate(repo),
+		ForkOf:                     resolveForkOf(repo),
 		Pages:                      resolvePages(pages),
 		Rulesets:                   resolvedRulesets,
 		VulnerabilityAlertsEnabled: &vulnerabilityAlertsEnabled,
@@ -683,6 +684,21 @@ func resolveRepositoryTemplate(githubRepository *github.Repository) *RepositoryT
 		}
 	}
 	return nil
+}
+
+func resolveForkOf(githubRepository *github.Repository) *string {
+	if !githubRepository.GetFork() {
+		return nil
+	}
+	parent := githubRepository.GetParent()
+	if parent == nil {
+		return nil
+	}
+	fullName := parent.GetFullName()
+	if fullName == "" {
+		return nil
+	}
+	return &fullName
 }
 
 func resolveVisibility(private bool) string {
