@@ -191,8 +191,13 @@ resource "github_branch_default" "default" {
 
   repository = github_repository.repository.name
   branch     = local.default_branch
+  rename     = local.default_branch != "main"
 
   depends_on = [github_branch.branch]
+
+  lifecycle {
+    ignore_changes = [rename]
+  }
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
