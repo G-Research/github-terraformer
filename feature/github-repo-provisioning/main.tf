@@ -186,6 +186,7 @@ module "repository" {
   has_discussions         = try(each.value.has_discussions, local.defaults.has_discussions)
   is_template             = try(each.value.is_template, local.defaults.is_template)
   default_branch          = try(each.value.default_branch, local.defaults.default_branch)
+  fork_of                 = try(each.value.fork_of, null)
   archived                = try(each.value.archived, local.defaults.archived)
   topics                  = try(each.value.topics,                  [])
   archive_on_destroy      = try(each.value.archive_on_destroy,      null)

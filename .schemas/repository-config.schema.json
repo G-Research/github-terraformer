@@ -506,6 +506,10 @@
         "template": {
           "$ref": "#/$defs/RepositoryTemplate"
         },
+        "fork_of": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$"
+        },
         "pages": {
           "$ref": "#/$defs/Pages"
         },
