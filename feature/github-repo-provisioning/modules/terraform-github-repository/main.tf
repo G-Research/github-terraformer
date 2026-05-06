@@ -28,6 +28,10 @@ locals {
   standard_topics        = var.topics == null ? lookup(var.defaults, "topics", []) : var.topics
   topics                 = concat(local.standard_topics, var.extra_topics)
   template               = var.template == null ? [] : [var.template]
+  fork_parts             = var.fork_of == null ? null : split("/", var.fork_of)
+  fork                   = var.fork_of != null
+  source_owner           = try(local.fork_parts[0], null)
+  source_repo            = try(local.fork_parts[1], null)
   issue_labels_create    = var.issue_labels_create == null ? lookup(var.defaults, "issue_labels_create", local.issue_labels_create_computed) : var.issue_labels_create
 
   issue_labels_create_computed = local.has_issues || length(var.issue_labels) > 0
@@ -119,6 +123,10 @@ resource "github_repository" "repository" {
   archived               = var.archived
   topics                 = local.topics
 
+  fork         = local.fork
+  source_owner = local.source_owner
+  source_repo  = local.source_repo
+
   archive_on_destroy   = var.archive_on_destroy
   vulnerability_alerts = local.vulnerability_alerts
 
@@ -153,6 +161,9 @@ resource "github_repository" "repository" {
       license_template,
       gitignore_template,
       template,
+      fork,
+      source_owner,
+      source_repo,
     ]
   }
 

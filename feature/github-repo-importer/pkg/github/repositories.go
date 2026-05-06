@@ -41,6 +41,7 @@ type Repository struct {
 	LicenseTemplate            *string               `yaml:"license_template,omitempty"`
 	GitignoreTemplate          *string               `yaml:"gitignore_template,omitempty"`
 	Template                   *RepositoryTemplate   `yaml:"template,omitempty"`
+	ForkOf                     *string               `yaml:"fork_of,omitempty" jsonschema:"pattern=^[^/]+/[^/]+$"`
 	Pages                      *Pages                `yaml:"pages,omitempty"`
 	Rulesets                   []Ruleset             `yaml:"rulesets,omitempty"`
 	VulnerabilityAlertsEnabled *bool                 `yaml:"vulnerability_alerts_enabled,omitempty"`
