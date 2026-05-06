@@ -218,6 +218,17 @@ variable "template" {
   default = null
 }
 
+variable "fork_of" {
+  description = "(Optional) Set this to create the repository as a fork of an existing repository. Format: 'owner/repo'."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.fork_of == null || can(regex("^[^/]+/[^/]+$", var.fork_of))
+    error_message = "fork_of must be of the form 'owner/repo'."
+  }
+}
+
 variable "admin_collaborators" {
   description = "(Optional, DEPRECATED: will be removed in a future version) A list of users to add as collaborators granting them admin (full) permission."
   type        = list(string)
