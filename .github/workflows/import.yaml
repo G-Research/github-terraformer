@@ -27,7 +27,7 @@ jobs:
     environment: import
     steps:
       - name: Generate a token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
         id: generate-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -35,7 +35,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Checkout GCSS
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           repository: G-Research/github-terraformer
           ref: ${{ inputs.gcss_ref }}
@@ -48,7 +48,7 @@ jobs:
           checkout-token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup Just
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b
         with:
           just-version: '1.4.0'
 
