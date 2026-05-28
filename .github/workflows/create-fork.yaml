@@ -30,7 +30,7 @@ jobs:
     environment: create-fork
     steps:
       - name: Generate GitHub App Token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         id: generate-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -39,7 +39,7 @@ jobs:
 
       - name: Parse and validate input
         id: parse-upstream
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
           UPSTREAM_REPO: ${{ inputs.upstream_repo }}
           FORK_NAME: ${{ inputs.fork_name }}
