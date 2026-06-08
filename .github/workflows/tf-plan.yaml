@@ -1,4 +1,4 @@
-name: Terraform Plan
+name: Validate and Plan
 
 on:
   workflow_call:
@@ -25,7 +25,34 @@ on:
         required: true
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout GCSS
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: Checkout config repo
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ inputs.commit_sha }}
+          token: ${{ secrets.gh_token }}
+          path: gcss_config
+          persist-credentials: false
+
+      - name: Validate repos/*.yaml
+        uses: ./.github/actions/validate-repo-configs
+        with:
+          config-path: gcss_config
+          fallback-schema-path: .schemas/repository-config.schema.json
+
   terraform-plan:
+    needs: validate
     runs-on: ubuntu-latest
     environment: plan
     permissions:

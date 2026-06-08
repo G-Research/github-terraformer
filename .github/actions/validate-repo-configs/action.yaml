@@ -1,0 +1,15 @@
+name: "Validate repository configuration files"
+description: "Validates repository config YAML files against a JSON schema, failing fast with a clear error before Terraform runs"
+inputs:
+  config-path:
+    description: "Path to the configuration repository containing repos/*.yaml files to validate"
+    required: true
+  fallback-schema-path:
+    description: "Path to the base JSON schema to validate against. Can be overridden by placing a schema at <config-path>/.schemas/repository-config.schema.json"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Validate repository config files against schema
+      shell: bash
+      run: python3 ${{ github.action_path }}/validate.py ${{ inputs.config-path }} ${{ inputs.fallback-schema-path }}
