@@ -33,9 +33,9 @@ var (
 var validateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Validate repository config YAML files against the JSON schema",
-	Long: `Validate validates every repos/*.yaml file in the config directory against the
-repository configuration JSON schema, failing fast with the offending file and
-JSON path before Terraform runs.
+	Long: `Validate validates every repos/*.yaml and repos/*.yml file in the config
+directory against the repository configuration JSON schema, failing fast with the
+offending file and JSON path before Terraform runs.
 
 By default it validates against the schema built from the importer's own structs
 (the same one produced by the 'schema' command). If the config directory
@@ -51,7 +51,7 @@ func init() {
 
 	validateCmd.Flags().StringVar(&validateConfigDir, "config-dir", "", "Path to the config repository containing repos/*.yaml")
 	validateCmd.Flags().StringVar(&validateSchemaPath, "schema", "", "Path to a schema override (defaults to <config-dir>/"+orgSchemaRelPath+" when present, otherwise the built-in schema)")
-	validateCmd.MarkFlagRequired("config-dir")
+	_ = validateCmd.MarkFlagRequired("config-dir")
 }
 
 func runValidate(cmd *cobra.Command, configDir, schemaOverride string) error {
@@ -60,36 +60,52 @@ func runValidate(cmd *cobra.Command, configDir, schemaOverride string) error {
 		return err
 	}
 
-	files, err := filepath.Glob(filepath.Join(configDir, "repos", "*.yaml"))
+	files, err := globRepoConfigs(configDir)
 	if err != nil {
-		return fmt.Errorf("list repos/*.yaml: %w", err)
+		return fmt.Errorf("list repo config files: %w", err)
 	}
 	sort.Strings(files)
 
 	if len(files) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No repos/*.yaml files found, skipping validation")
+		cmd.Println("No repos/*.yaml or repos/*.yml files found, skipping validation")
 		return nil
 	}
 
 	var failures []string
+	failedFiles := 0
 	for _, file := range files {
 		fileErrs := validateFile(file, schema)
 		if len(fileErrs) > 0 {
 			failures = append(failures, fileErrs...)
+			failedFiles++
 			continue
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "ok -- %s\n", file)
+		cmd.Printf("ok -- %s\n", file)
 	}
 
 	if len(failures) > 0 {
-		fmt.Fprintln(cmd.OutOrStderr(), "\nSchema validation errors were encountered:")
+		cmd.PrintErrln("\nSchema validation errors were encountered:")
 		for _, f := range failures {
-			fmt.Fprintf(cmd.OutOrStderr(), "  %s\n", f)
+			cmd.PrintErrf("  %s\n", f)
 		}
-		return fmt.Errorf("schema validation failed for %d file(s)", failedFileCount(failures))
+		return fmt.Errorf("schema validation failed for %d file(s)", failedFiles)
 	}
 
 	return nil
+}
+
+// globRepoConfigs returns the repos/*.yaml and repos/*.yml files under
+// configDir, matching the extensions the importer's expand command accepts.
+func globRepoConfigs(configDir string) ([]string, error) {
+	var files []string
+	for _, ext := range []string{"*.yaml", "*.yml"} {
+		matches, err := filepath.Glob(filepath.Join(configDir, "repos", ext))
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, matches...)
+	}
+	return files, nil
 }
 
 // loadValidationSchema resolves and compiles the schema to validate against. An
@@ -99,7 +115,7 @@ func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride string) 
 	compiler := jsonschema.NewCompiler()
 
 	if schemaOverride == "" {
-		if candidate, ok := resolveOrgSchema(configDir); ok {
+		if candidate, ok := resolveOrgSchema(cmd, configDir); ok {
 			schemaOverride = candidate
 		}
 	}
@@ -109,17 +125,17 @@ func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride string) 
 	var doc any
 	var err error
 	if schemaOverride != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Using schema override: %s\n", schemaOverride)
+		cmd.Printf("Using schema override: %s\n", schemaOverride)
 		f, openErr := os.Open(schemaOverride)
 		if openErr != nil {
 			return nil, fmt.Errorf("open schema override %s: %w", schemaOverride, openErr)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		if doc, err = jsonschema.UnmarshalJSON(f); err != nil {
 			return nil, fmt.Errorf("parse schema override %s: %w", schemaOverride, err)
 		}
 	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), "Using built-in schema")
+		cmd.Println("Using built-in schema")
 		raw, marshalErr := MarshalRepositoryConfigSchema()
 		if marshalErr != nil {
 			return nil, marshalErr
@@ -141,7 +157,7 @@ func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride string) 
 
 // resolveOrgSchema returns the override schema path if it exists and resolves to
 // a location inside configDir, guarding against symlink escapes.
-func resolveOrgSchema(configDir string) (string, bool) {
+func resolveOrgSchema(cmd *cobra.Command, configDir string) (string, bool) {
 	candidate := filepath.Join(configDir, orgSchemaRelPath)
 	if _, err := os.Stat(candidate); err != nil {
 		return "", false
@@ -162,7 +178,7 @@ func resolveOrgSchema(configDir string) (string, bool) {
 
 	rel, err := filepath.Rel(root, resolved)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		fmt.Fprintf(os.Stderr, "WARNING: ignoring schema override outside config directory: %s\n", candidate)
+		cmd.PrintErrf("WARNING: ignoring schema override outside config directory: %s\n", candidate)
 		return "", false
 	}
 	return candidate, true
@@ -229,14 +245,4 @@ func toJSONValue(v any) (any, error) {
 		return nil, fmt.Errorf("normalize YAML to JSON: %w", err)
 	}
 	return jsonschema.UnmarshalJSON(bytes.NewReader(b))
-}
-
-func failedFileCount(failures []string) int {
-	files := make(map[string]struct{}, len(failures))
-	for _, f := range failures {
-		if i := strings.Index(f, ": "); i > 0 {
-			files[f[:i]] = struct{}{}
-		}
-	}
-	return len(files)
 }

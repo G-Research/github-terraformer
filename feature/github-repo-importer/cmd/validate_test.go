@@ -59,6 +59,18 @@ func TestValidate_SchemaViolationCitesFileAndPath(t *testing.T) {
 	assert.Contains(t, out, "/has_issues")
 }
 
+func TestValidate_YmlExtensionIsValidated(t *testing.T) {
+	dir := newConfigDir(t, map[string]string{
+		"bad.yml": "visibility: public\n", // missing required default_branch
+	})
+
+	out, err := runValidateCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, filepath.Join(dir, "repos", "bad.yml"))
+	assert.Contains(t, out, "missing property 'default_branch'")
+}
+
 func TestValidate_MissingRequiredField(t *testing.T) {
 	dir := newConfigDir(t, map[string]string{
 		"missing.yaml": "visibility: public\n",
@@ -88,7 +100,7 @@ func TestValidate_NoFilesSkips(t *testing.T) {
 	out, err := runValidateCmd(t, dir, "")
 
 	assert.NoError(t, err)
-	assert.Contains(t, out, "No repos/*.yaml files found")
+	assert.Contains(t, out, "skipping validation")
 }
 
 func TestValidate_OrgSchemaOverrideTakesPrecedence(t *testing.T) {
