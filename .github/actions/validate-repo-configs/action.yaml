@@ -1,15 +1,22 @@
 name: "Validate repository configuration files"
-description: "Validates repository config YAML files against a JSON schema, failing fast with a clear error before Terraform runs"
+description: "Validates repository config YAML files against the importer's JSON schema, failing fast with a clear error before Terraform runs"
 inputs:
   config-path:
     description: "Path to the configuration repository containing repos/*.yaml files to validate"
     required: true
-  fallback-schema-path:
-    description: "Path to the base JSON schema to validate against. Can be overridden by placing a schema at <config-path>/.schemas/repository-config.schema.json"
-    required: true
+  importer-path:
+    description: "Path to the github-repo-importer Go module"
+    required: false
+    default: "feature/github-repo-importer"
 runs:
   using: "composite"
   steps:
-    - name: Validate repository config files against schema
+    - name: Setup Go
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      with:
+        go-version-file: ${{ inputs.importer-path }}/go.mod
+
+    - name: Validate repos/*.yaml against schema
       shell: bash
-      run: python3 ${{ github.action_path }}/validate.py ${{ inputs.config-path }} ${{ inputs.fallback-schema-path }}
+      working-directory: ${{ inputs.importer-path }}
+      run: go run . validate --config-dir "${{ github.workspace }}/${{ inputs.config-path }}"

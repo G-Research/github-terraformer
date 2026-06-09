@@ -11,24 +11,50 @@ import (
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 )
 
+const (
+	schemaOutDir  = ".schemas"
+	schemaOutFile = "repository-config.schema.json"
+)
+
 var schemaCmd = &cobra.Command{
 	Use:   "schema",
 	Short: "Generate JSON Schema for the repository config",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projectRoot := "../../"
-		outDir := ".schemas"
-		outFile := "repository-config.schema.json"
-		if err := os.MkdirAll(fmt.Sprintf("%s/%s", projectRoot, outDir), 0o755); err != nil {
-			return fmt.Errorf("create %s: %w", outDir, err)
+		if err := os.MkdirAll(fmt.Sprintf("%s/%s", projectRoot, schemaOutDir), 0o755); err != nil {
+			return fmt.Errorf("create %s: %w", schemaOutDir, err)
 		}
 
-		outPath := filepath.Join(projectRoot, outDir, outFile)
-		f, err := os.Create(outPath)
+		outPath := filepath.Join(projectRoot, schemaOutDir, schemaOutFile)
+
+		data, err := MarshalRepositoryConfigSchema()
 		if err != nil {
-			return fmt.Errorf("create schema file: %w", err)
+			return err
 		}
-		defer f.Close()
+		if err := os.WriteFile(outPath, data, 0o644); err != nil {
+			return fmt.Errorf("write schema file: %w", err)
+		}
 
+		fmt.Fprintf(cmd.OutOrStdout(), "Schema written to %s\n", outPath)
+		return nil
+	},
+}
+
+// MarshalRepositoryConfigSchema returns the JSON-encoded repository config schema.
+func MarshalRepositoryConfigSchema() ([]byte, error) {
+	data, err := json.MarshalIndent(BuildRepositoryConfigSchema(), "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal schema: %w", err)
+	}
+	return data, nil
+}
+
+// BuildRepositoryConfigSchema reflects the JSON schema for the repository
+// configuration from the Go structs and applies the manual constraints that
+// cannot be expressed through struct tags. It is the single source of truth
+// shared by the `schema` and `validate` commands.
+func BuildRepositoryConfigSchema() *jsonschema.Schema {
+	{
 		reflector := &jsonschema.Reflector{
 			AllowAdditionalProperties: false,
 			FieldNameTag:              "yaml",
@@ -36,7 +62,7 @@ var schemaCmd = &cobra.Command{
 
 		schema := reflector.Reflect(&RepositoryWithExpansionConfig{})
 		schema.Title = "Repository Configuration"
-		schema.ID = jsonschema.ID(fmt.Sprintf("https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s", outDir, outFile))
+		schema.ID = jsonschema.ID(fmt.Sprintf("https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s", schemaOutDir, schemaOutFile))
 
 		squashIf := &jsonschema.Schema{
 			Properties: orderedmap.New[string, *jsonschema.Schema](),
@@ -108,17 +134,8 @@ var schemaCmd = &cobra.Command{
 			})
 		}
 
-		data, err := json.MarshalIndent(schema, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshal schema: %w", err)
-		}
-		if _, err := f.Write(data); err != nil {
-			return fmt.Errorf("write schema: %w", err)
-		}
-
-		fmt.Fprintf(cmd.OutOrStdout(), "Schema written to %s\n", outPath)
-		return nil
-	},
+		return schema
+	}
 }
 
 func init() {

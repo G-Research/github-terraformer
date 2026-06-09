@@ -49,7 +49,6 @@ jobs:
         uses: ./.github/actions/validate-repo-configs
         with:
           config-path: gcss_config
-          fallback-schema-path: .schemas/repository-config.schema.json
 
   terraform-plan:
     needs: validate
