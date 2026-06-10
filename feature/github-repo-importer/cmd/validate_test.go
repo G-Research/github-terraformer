@@ -30,7 +30,7 @@ func runValidateCmd(t *testing.T, configDir, override string) (string, error) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	err := runValidate(cmd, configDir, override)
+	err := runValidate(cmd, configDir, override, "")
 	return out.String(), err
 }
 
@@ -103,6 +103,62 @@ func TestValidate_NoFilesSkips(t *testing.T) {
 	assert.Contains(t, out, "skipping validation")
 }
 
+func TestValidate_FallbackSchemaUsedWhenNoOrgOverride(t *testing.T) {
+	dir := newConfigDir(t, map[string]string{
+		"r.yaml": "default_branch: main\nvisibility: public\n",
+	})
+
+	// Write a fallback schema that only allows "internal" — should be used
+	// when no org override exists.
+	fallbackFile := filepath.Join(t.TempDir(), "fallback.schema.json")
+	require.NoError(t, os.WriteFile(fallbackFile,
+		[]byte(`{"type":"object","properties":{"visibility":{"enum":["internal"]}}}`),
+		0o644,
+	))
+
+	var out bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := runValidate(cmd, dir, "", fallbackFile)
+
+	require.Error(t, err)
+	assert.Contains(t, out.String(), "Using base schema")
+	assert.Contains(t, out.String(), "/visibility")
+}
+
+func TestValidate_OrgOverrideTakesPrecedenceOverFallback(t *testing.T) {
+	dir := newConfigDir(t, map[string]string{
+		// valid against the org override (allows "public"), invalid against fallback (only "internal")
+		"r.yaml": "default_branch: main\nvisibility: public\n",
+	})
+
+	// Org override allows "public"
+	schemasDir := filepath.Join(dir, ".schemas")
+	require.NoError(t, os.MkdirAll(schemasDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(schemasDir, "repository-config.schema.json"),
+		[]byte(`{"type":"object","properties":{"visibility":{"enum":["public","private","internal"]}}}`),
+		0o644,
+	))
+
+	// Fallback only allows "internal"
+	fallbackFile := filepath.Join(t.TempDir(), "fallback.schema.json")
+	require.NoError(t, os.WriteFile(fallbackFile,
+		[]byte(`{"type":"object","properties":{"visibility":{"enum":["internal"]}}}`),
+		0o644,
+	))
+
+	var out bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := runValidate(cmd, dir, "", fallbackFile)
+
+	assert.NoError(t, err)
+	assert.Contains(t, out.String(), "Using org schema override")
+}
+
 func TestValidate_OrgSchemaOverrideTakesPrecedence(t *testing.T) {
 	dir := newConfigDir(t, map[string]string{
 		// Valid against the built-in schema, but the override only allows "internal".
@@ -119,7 +175,7 @@ func TestValidate_OrgSchemaOverrideTakesPrecedence(t *testing.T) {
 	out, err := runValidateCmd(t, dir, "")
 
 	require.Error(t, err)
-	assert.Contains(t, out, "Using schema override")
+	assert.Contains(t, out, "Using org schema override")
 	assert.Contains(t, out, "/visibility")
 }
 

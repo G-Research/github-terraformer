@@ -26,8 +26,9 @@ var printer = message.NewPrinter(language.English)
 const orgSchemaRelPath = ".schemas/repository-config.schema.json"
 
 var (
-	validateConfigDir  string
-	validateSchemaPath string
+	validateConfigDir    string
+	validateSchemaPath   string
+	validateFallbackPath string
 )
 
 var validateCmd = &cobra.Command{
@@ -37,12 +38,14 @@ var validateCmd = &cobra.Command{
 directory against the repository configuration JSON schema, failing fast with the
 offending file and JSON path before Terraform runs.
 
-By default it validates against the schema built from the importer's own structs
-(the same one produced by the 'schema' command). If the config directory
-contains an override at ` + orgSchemaRelPath + `, that schema is used instead.`,
+Schema resolution order:
+  1. --schema flag (explicit override)
+  2. <config-dir>/` + orgSchemaRelPath + ` (org-level override, if present)
+  3. --fallback-schema flag (e.g. github-terraformer's own .schemas/ file)
+  4. built-in schema generated from the importer's Go structs`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runValidate(cmd, validateConfigDir, validateSchemaPath)
+		return runValidate(cmd, validateConfigDir, validateSchemaPath, validateFallbackPath)
 	},
 }
 
@@ -50,12 +53,13 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 
 	validateCmd.Flags().StringVar(&validateConfigDir, "config-dir", "", "Path to the config repository containing repos/*.yaml")
-	validateCmd.Flags().StringVar(&validateSchemaPath, "schema", "", "Path to a schema override (defaults to <config-dir>/"+orgSchemaRelPath+" when present, otherwise the built-in schema)")
+	validateCmd.Flags().StringVar(&validateSchemaPath, "schema", "", "Explicit schema path (takes precedence over all other sources)")
+	validateCmd.Flags().StringVar(&validateFallbackPath, "fallback-schema", "", "Fallback schema path used when no org override exists (e.g. github-terraformer/.schemas/repository-config.schema.json)")
 	_ = validateCmd.MarkFlagRequired("config-dir")
 }
 
-func runValidate(cmd *cobra.Command, configDir, schemaOverride string) error {
-	schema, err := loadValidationSchema(cmd, configDir, schemaOverride)
+func runValidate(cmd *cobra.Command, configDir, schemaOverride, fallbackSchema string) error {
+	schema, err := loadValidationSchema(cmd, configDir, schemaOverride, fallbackSchema)
 	if err != nil {
 		return err
 	}
@@ -108,10 +112,13 @@ func globRepoConfigs(configDir string) ([]string, error) {
 	return files, nil
 }
 
-// loadValidationSchema resolves and compiles the schema to validate against. An
-// org-provided override at <configDir>/.schemas/repository-config.schema.json
-// (or an explicit --schema path) takes precedence over the built-in schema.
-func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride string) (*jsonschema.Schema, error) {
+// loadValidationSchema resolves and compiles the schema to validate against.
+// Resolution order:
+//  1. explicit schemaOverride (--schema flag)
+//  2. org-level override at <configDir>/.schemas/repository-config.schema.json
+//  3. fallbackSchema (--fallback-schema flag, e.g. github-terraformer's own .schemas/ file)
+//  4. built-in schema generated from the importer's Go structs
+func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride, fallbackSchema string) (*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
 
 	if schemaOverride == "" {
@@ -124,8 +131,9 @@ func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride string) 
 
 	var doc any
 	var err error
-	if schemaOverride != "" {
-		cmd.Printf("Using schema override: %s\n", schemaOverride)
+	switch {
+	case schemaOverride != "":
+		cmd.Printf("Using org schema override: %s\n", schemaOverride)
 		f, openErr := os.Open(schemaOverride)
 		if openErr != nil {
 			return nil, fmt.Errorf("open schema override %s: %w", schemaOverride, openErr)
@@ -134,7 +142,17 @@ func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride string) 
 		if doc, err = jsonschema.UnmarshalJSON(f); err != nil {
 			return nil, fmt.Errorf("parse schema override %s: %w", schemaOverride, err)
 		}
-	} else {
+	case fallbackSchema != "":
+		cmd.Printf("Using base schema: %s\n", fallbackSchema)
+		f, openErr := os.Open(fallbackSchema)
+		if openErr != nil {
+			return nil, fmt.Errorf("open fallback schema %s: %w", fallbackSchema, openErr)
+		}
+		defer func() { _ = f.Close() }()
+		if doc, err = jsonschema.UnmarshalJSON(f); err != nil {
+			return nil, fmt.Errorf("parse fallback schema %s: %w", fallbackSchema, err)
+		}
+	default:
 		cmd.Println("Using built-in schema")
 		raw, marshalErr := MarshalRepositoryConfigSchema()
 		if marshalErr != nil {

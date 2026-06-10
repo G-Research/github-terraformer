@@ -19,4 +19,7 @@ runs:
     - name: Validate repos/*.yaml against schema
       shell: bash
       working-directory: ${{ inputs.importer-path }}
-      run: go run . validate --config-dir "${{ github.workspace }}/${{ inputs.config-path }}"
+      run: |
+        go run . validate \
+          --config-dir "${{ github.workspace }}/${{ inputs.config-path }}" \
+          --fallback-schema "${{ github.workspace }}/.schemas/repository-config.schema.json"
