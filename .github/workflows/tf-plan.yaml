@@ -16,6 +16,11 @@ on:
         type: string
         description: 'The Terraform Cloud organization'
         required: true
+      base_schema_path:
+        type: string
+        description: "Path to the base JSON schema file for repos/*.yaml validation. When omitted, the schema bundled with github-terraformer is used."
+        required: false
+        default: ""
     secrets:
       app_private_key:
         required: true
@@ -49,6 +54,7 @@ jobs:
         uses: ./.github/actions/validate-repo-configs
         with:
           config-path: gcss_config
+          fallback-schema-path: ${{ inputs.base_schema_path }}
 
   terraform-plan:
     needs: validate
