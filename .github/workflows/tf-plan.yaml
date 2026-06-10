@@ -18,7 +18,7 @@ on:
         required: true
       fallback_schema_path:
         type: string
-        description: "Path to the fallback JSON schema for repos/*.yaml validation, used when the config repo provides no override. When omitted, the schema bundled with github-terraformer is used."
+        description: "Workspace-relative path to the fallback JSON schema for repos/*.yaml validation, used when the config repo provides no override (e.g. 'gcss_config/.schemas/my.schema.json'). When omitted, the schema bundled with github-terraformer is used."
         required: false
         default: ""
     secrets:

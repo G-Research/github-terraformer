@@ -5,9 +5,9 @@ inputs:
     description: "Path to the configuration repository containing repos/*.yaml files to validate"
     required: true
   fallback-schema-path:
-    description: "Path to the base schema file to use when the config repository does not provide its own override. Defaults to the schema bundled with github-terraformer."
+    description: "Workspace-relative path to the fallback schema, used when the config repository provides no override. Resolved against the runner workspace (e.g. 'gcss_config/.schemas/my.schema.json'). Defaults to the schema bundled with github-terraformer."
     required: false
-    default: ""
+    default: ".schemas/repository-config.schema.json"
   importer-path:
     description: "Path to the github-repo-importer Go module"
     required: false
@@ -24,7 +24,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.importer-path }}
       env:
-        FALLBACK_SCHEMA: ${{ inputs.fallback-schema-path != '' && inputs.fallback-schema-path || format('{0}/.schemas/repository-config.schema.json', github.workspace) }}
+        FALLBACK_SCHEMA: ${{ format('{0}/{1}', github.workspace, inputs.fallback-schema-path != '' && inputs.fallback-schema-path || '.schemas/repository-config.schema.json') }}
       run: |
         go run . validate \
           --config-dir "${{ github.workspace }}/${{ inputs.config-path }}" \
