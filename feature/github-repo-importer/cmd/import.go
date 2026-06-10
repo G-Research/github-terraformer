@@ -20,7 +20,7 @@ var importCmd = &cobra.Command{
 
 		repo, err := github.ImportRepo(repository)
 		if err != nil {
-			return fmt.Errorf("failed to import repo: %w", err)
+			return err
 		}
 
 		if err := github.WriteRepositoryToYaml(repo); err != nil {

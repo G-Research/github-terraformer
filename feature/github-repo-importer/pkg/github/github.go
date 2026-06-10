@@ -23,6 +23,10 @@ var (
 	v4client *githubv4.Client
 )
 
+// ErrRepoNotFound is returned when the repository to import does not exist or
+// the authenticated GitHub App has no access to it (HTTP 404).
+var ErrRepoNotFound = errors.New("repository not found")
+
 func InitializeClients() {
 	var err error
 	v3client, v4client, err = CreateGitHubClient()
@@ -66,7 +70,10 @@ func ImportRepo(repoName string) (*Repository, error) {
 	repoNameSplit := strings.Split(repoName, "/")
 	repo, r, err := v3client.Repositories.Get(context.Background(), repoNameSplit[0], repoNameSplit[1])
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch repo: %w (API Response: %s)", err, r.Status)
+		if r != nil && r.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: %q — check the spelling and that the GitHub App is installed and has access to it", ErrRepoNotFound, repoName)
+		}
+		return nil, fmt.Errorf("failed to fetch repo %q: %w", repoName, err)
 	}
 
 	if err := dumpManager.WriteJSONFile("repository.json", repo); err != nil {
@@ -94,10 +101,10 @@ func ImportRepo(repoName string) (*Repository, error) {
 
 	rulesets, r, err := v3client.Repositories.GetAllRulesets(context.Background(), repoNameSplit[0], repoNameSplit[1], false)
 	if err != nil {
-		if r.StatusCode == http.StatusForbidden {
+		if r != nil && r.StatusCode == http.StatusForbidden {
 			fmt.Printf("skipping rulesets due to insufficient permissions: %v\n", err)
 		} else {
-			return nil, fmt.Errorf("failed to get all rulesets: %v", err)
+			return nil, fmt.Errorf("failed to get all rulesets: %w", err)
 		}
 	}
 
@@ -134,9 +141,9 @@ func ImportRepo(repoName string) (*Repository, error) {
 		fmt.Printf("failed to write branch_protection_rules.json: %v\n", err)
 	}
 
-	orgTeams, res, err := v3client.Teams.ListTeams(context.Background(), repoNameSplit[0], &github.ListOptions{PerPage: 100})
+	orgTeams, _, err := v3client.Teams.ListTeams(context.Background(), repoNameSplit[0], &github.ListOptions{PerPage: 100})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get org teams: %w (API Response: %s)", err, res.Status)
+		return nil, fmt.Errorf("failed to get org teams: %w", err)
 	}
 
 	if err := dumpManager.WriteJSONFile("org_teams.json", orgTeams); err != nil {

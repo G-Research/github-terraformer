@@ -1,5 +1,6 @@
 import-repo repoName:
   #!/usr/bin/env bash
+  set -euo pipefail
   go run main.go import {{repoName}}
   IFS='/' read -r owner repo <<< {{repoName}}
   mkdir -p "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/"
