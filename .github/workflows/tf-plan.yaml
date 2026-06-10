@@ -133,12 +133,13 @@ jobs:
               const importCount = planSummary.import?.length || 0;
               const createCount = (planSummary.create?.length || 0) + recreateCount;
               const deleteCount = (planSummary.delete?.length || 0) + recreateCount;
+              const planResultSummary = `${importCount} to import, ${createCount} to add, ${updateCount} to change, ${deleteCount} to destroy`;
             
               // build body dynamically. indentation inside if statements is important because if text is indented as it should be (4 spaces), it will be rendered as code block in markdown
               body = `
               ### Terraform Plan Result
               
-              Terraform plan: ${importCount} to import, ${createCount} to add, ${updateCount} to change, ${deleteCount} to destroy.
+              Terraform plan: ${planResultSummary}.
               `;
                 
               if (deleteCount > 0) {
@@ -197,12 +198,12 @@ jobs:
             
               switch (process.env.PLAN_EXITCODE) {
                 case "0":      
-                  title = "Terraform Plan Succeeded (no changes)";
+                  title = "Terraform plan: no changes";
                   summary = `Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${detailsUrl}`;
                   text = "No infrastructure changes detected";
                   break;
                 case "2":
-                  title = "Terraform Plan Succeeded (with changes)";
+                  title = `Terraform plan: ${planResultSummary}`;
                   summary = `Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${detailsUrl}`;
                   text = body;
                   if (text.length > 65535) {
