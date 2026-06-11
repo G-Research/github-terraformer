@@ -23,3 +23,9 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      - name: Check generated schema is up to date
+        run: |
+          go run . schema
+          git diff --exit-code ../../.schemas/repository-config.schema.json \
+            || { echo "::error::.schemas/repository-config.schema.json is stale. Run 'go run . schema' in feature/github-repo-importer and commit the result."; exit 1; }
