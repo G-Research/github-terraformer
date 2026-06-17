@@ -23,15 +23,23 @@ runs:
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
     - name: Push changes
+      id: push
       shell: bash
       run: |
         cd feature/github-repo-provisioning/gcss_config
-        git checkout -b ${{ inputs.branch-name }}
         git add .
+        if git diff --cached --quiet; then
+          echo "No changes to commit — skipping PR."
+          echo "changes=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        git checkout -b ${{ inputs.branch-name }}
         git commit -m "${{ inputs.commit-message }}"
         git push origin ${{ inputs.branch-name }}
+        echo "changes=true" >> "$GITHUB_OUTPUT"
 
     - name: Create Pull Request
+      if: steps.push.outputs.changes == 'true'
       shell: bash
       run: gh pr create --title "${{ inputs.pr-title }}" --body "This is an automated PR." --base ${{ github.ref_name }} --head ${{ inputs.branch-name }} --repo ${{ github.repository }}
       env:
