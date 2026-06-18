@@ -1,0 +1,87 @@
+name: "Drift PR for unmanaged repositories"
+description: "Opens, updates, or closes a single PR listing repos that exist in the org but are not yet managed by GCSS"
+inputs:
+  branch-name:
+    description: "Stable branch used for the drift PR"
+    required: false
+    default: "drift/unmanaged-repos"
+  reviewers:
+    description: "Comma-separated reviewers (users or org/team slugs) to request on the PR"
+    required: false
+    default: ""
+  github-token:
+    description: "Token used to push and manage the PR"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Configure git
+      shell: bash
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+    - name: Open, update or close the drift PR
+      shell: bash
+      working-directory: feature/github-repo-provisioning/gcss_config
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BRANCH: ${{ inputs.branch-name }}
+        REVIEWERS: ${{ inputs.reviewers }}
+        BASE: ${{ github.ref_name }}
+      run: |
+        set -euo pipefail
+        SRC="importer_tmp_dir"
+
+        # How many unmanaged repo configs did the compare step leave behind?
+        detected=$(find "$SRC" -maxdepth 1 -type f \( -name '*.yaml' -o -name '.*.yaml' \) 2>/dev/null | wc -l | tr -d ' ')
+        existing_pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+
+        # No drift: close any open drift PR (and its branch) so it doesn't go stale.
+        if [[ "$detected" -eq 0 ]]; then
+          if [[ -n "$existing_pr" ]]; then
+            gh pr close "$existing_pr" --delete-branch \
+              --comment "No unmanaged repositories detected — drift resolved. Closing automatically."
+            echo "Closed drift PR #$existing_pr (no unmanaged repositories remain)."
+          else
+            echo "No unmanaged repositories detected; nothing to do."
+          fi
+          exit 0
+        fi
+
+        echo "Detected $detected unmanaged repository config(s)."
+
+        # Rebuild the drift branch from the base each run so the PR only ever
+        # reflects the current set of unmanaged repos (untracked importer_tmp_dir
+        # files are preserved across the checkout).
+        git fetch origin "$BASE"
+        git checkout -B "$BRANCH" "origin/$BASE"
+        git add "$SRC"
+        git commit -m "Detected unmanaged repositories (GCSS-1132)"
+
+        # If an identical drift branch already exists remotely, don't re-push
+        # (avoids re-notifying reviewers every scheduled run).
+        if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+          git fetch origin "$BRANCH"
+          if git diff --quiet "origin/$BRANCH" HEAD; then
+            echo "Drift PR already up to date; nothing to push."
+            exit 0
+          fi
+          git push --force-with-lease origin "$BRANCH"
+        else
+          git push origin "$BRANCH"
+        fi
+
+        if [[ -z "$existing_pr" ]]; then
+          pr_url=$(gh pr create \
+            --title "Unmanaged repositories detected" \
+            --body "These repositories exist in the organisation but are not yet managed by GCSS. Merge this PR to bring them under management, or add them to \`ignored_repos\` in \`config/import-config.yaml\` to acknowledge them." \
+            --base "$BASE" \
+            --head "$BRANCH")
+          echo "Opened new drift PR: $pr_url"
+          if [[ -n "${REVIEWERS}" ]]; then
+            gh pr edit "$pr_url" --add-reviewer "${REVIEWERS}" || echo "Warning: could not request reviewers '${REVIEWERS}'"
+          fi
+        else
+          echo "Updated existing drift PR #$existing_pr."
+        fi

@@ -10,6 +10,10 @@ inputs:
   target-directory:
     description: "Target directory to compare"
     required: true
+  keep:
+    description: "Which configs to keep in the source dir: 'changed' (new + modified, default) or 'new-only' (only repos that have no existing config)"
+    required: false
+    default: "changed"
 runs:
   using: "composite"
   steps:
@@ -19,16 +23,26 @@ runs:
       env:
         SOURCE_DIRECTORY: ${{ inputs.source-directory }}
         TARGET_DIRECTORY: ${{ inputs.target-directory }}
+        KEEP: ${{ inputs.keep }}
       run: |
         set -euo pipefail
         dirA="${SOURCE_DIRECTORY}"
         dirB="${TARGET_DIRECTORY}"
         result=$(just compare "$dirA" "$dirB")
-        files_to_delete=$(echo "$result" | jq -r '.identical[]?')
+
+        # Always drop unchanged (identical) configs. In 'new-only' mode also drop
+        # modified (different) configs, leaving only repos that have no config yet.
+        case "${KEEP}" in
+          new-only) jq_filter='(.identical[]?, .different[]?)' ;;
+          changed)  jq_filter='.identical[]?' ;;
+          *) echo "Invalid 'keep' value: ${KEEP} (expected 'changed' or 'new-only')" >&2; exit 1 ;;
+        esac
+        files_to_delete=$(echo "$result" | jq -r "$jq_filter")
+
         if [[ -z "$files_to_delete" ]]; then
-          echo "No identical (unchanged) files to remove."
+          echo "No files to remove (keep mode: ${KEEP})."
         else
-          echo "Removing unchanged configs from $dirA so the PR only shows real changes:"
+          echo "Removing configs from $dirA (keep mode: ${KEEP}) so the PR only shows the intended changes:"
           while IFS= read -r relpath; do
             [[ -z "$relpath" ]] && continue
             rm "$dirA/$relpath"
