@@ -17,18 +17,34 @@ on:
         description: "Comma-separated reviewers (users or org/team slugs) to request on the drift PR"
         required: false
         default: ""
+      environment:
+        type: string
+        description: >-
+          Deployment environment that provides APP_ID for the management app.
+          Because this runs unattended on a schedule, the chosen environment
+          MUST NOT have required-reviewer or wait-timer protection rules, or
+          every run will stall pending manual approval. Defaults to 'schedule'.
+        required: false
+        default: "schedule"
     secrets:
       app_private_key:
         required: true
+
+# A full org import can run longer than the schedule interval; prevent
+# overlapping runs from racing on the shared drift branch / PR.
+concurrency:
+  group: detect-unmanaged-repos
+  cancel-in-progress: false
 
 jobs:
   detect-unmanaged-repos:
     runs-on: ubuntu-latest
     name: Detect unmanaged repositories
-    # Uses the 'import' environment so it inherits APP_ID for the management app,
-    # which must have org-wide ("All repositories") access or new repos are
-    # invisible to the importer (see GCSS-1132).
-    environment: import
+    # Environment supplies APP_ID for the management app, which must have
+    # org-wide ("All repositories") access or new repos are invisible to the
+    # importer (see GCSS-1132). Must be free of approval/protection rules — see
+    # the 'environment' input description.
+    environment: ${{ inputs.environment }}
     permissions:
       contents: write
       pull-requests: write

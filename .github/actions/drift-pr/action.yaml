@@ -57,21 +57,33 @@ runs:
         git fetch origin "$BASE"
         git checkout -B "$BRANCH" "origin/$BASE"
         git add "$SRC"
+
+        # Nothing staged means the detected configs are already present on the
+        # base branch (e.g. a drift PR was just merged and is awaiting
+        # promotion); there is nothing to surface, so exit cleanly instead of
+        # failing on an empty commit under `set -e`.
+        if git diff --cached --quiet; then
+          echo "Detected configs already present on $BASE (pending promotion); nothing to surface."
+          exit 0
+        fi
         git commit -m "Detected unmanaged repositories (GCSS-1132)"
 
-        # If an identical drift branch already exists remotely, don't re-push
-        # (avoids re-notifying reviewers every scheduled run).
+        # Push only when the remote branch isn't already identical (avoids
+        # re-notifying reviewers every run), but always continue so that a PR is
+        # (re)opened below if one isn't already present — e.g. when a previous
+        # drift PR was closed without deleting the branch.
         if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
           git fetch origin "$BRANCH"
           if git diff --quiet "origin/$BRANCH" HEAD; then
-            echo "Drift PR already up to date; nothing to push."
-            exit 0
+            echo "Remote drift branch already up to date; skipping push."
+          else
+            git push --force-with-lease origin "$BRANCH"
           fi
-          git push --force-with-lease origin "$BRANCH"
         else
           git push origin "$BRANCH"
         fi
 
+        # Ensure exactly one open drift PR exists.
         if [[ -z "$existing_pr" ]]; then
           pr_url=$(gh pr create \
             --title "Unmanaged repositories detected" \
