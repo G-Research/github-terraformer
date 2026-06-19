@@ -121,20 +121,32 @@ jobs:
         with:
           just-version: '1.4.0'
 
-      - name: Import repos
+      - name: Exclude already-managed repositories from the import
+        shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          config="feature/github-repo-importer/import-config.yaml"
+          repos_dir="feature/github-repo-provisioning/gcss_config/repos"
+          # The importer skips repos listed in ignored_repos, so treating every
+          # already-configured repo as ignored makes it import ONLY unmanaged
+          # repositories — avoiding a full-org import on every run (GCSS-1132).
+          if [[ -d "$repos_dir" ]]; then
+            while IFS= read -r f; do
+              name="$(basename "$f" .yaml)"
+              yq -i ".ignored_repos = ((.ignored_repos // []) + [\"${OWNER}/${name}\"])" "$config"
+            done < <(find "$repos_dir" -maxdepth 1 -type f -name '*.yaml')
+          fi
+          echo "Effective ignored_repos after excluding managed repositories:"
+          yq '.ignored_repos' "$config"
+
+      - name: Import unmanaged repos
         working-directory: feature/github-repo-importer
         run: just import-repos
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           OWNER: ${{ github.repository_owner }}
-
-      - name: Filter to unmanaged repos only
-        uses: ./.github/actions/compare
-        with:
-          working-directory: feature/github-repo-importer
-          source-directory: "../github-repo-provisioning/gcss_config/importer_tmp_dir/"
-          target-directory: "../github-repo-provisioning/gcss_config/repos/"
-          keep: "new-only"
 
       - name: Open or update the drift PR
         uses: ./.github/actions/drift-pr
