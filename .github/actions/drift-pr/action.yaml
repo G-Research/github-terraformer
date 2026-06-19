@@ -12,6 +12,10 @@ inputs:
   github-token:
     description: "Token used to push and manage the PR"
     required: true
+  drift-detected:
+    description: "Whether `terraform plan` reported drift (exit code 2). A PR is only opened when terraform confirms real drift — this avoids false positives from config differences terraform treats as no-ops (e.g. empty vs null fields)."
+    required: false
+    default: "false"
 runs:
   using: "composite"
   steps:
@@ -29,6 +33,7 @@ runs:
         BRANCH: ${{ inputs.branch-name }}
         REVIEWERS: ${{ inputs.reviewers }}
         BASE: ${{ github.ref_name }}
+        DRIFT_DETECTED: ${{ inputs.drift-detected }}
       run: |
         set -euo pipefail
         SRC="importer_tmp_dir"
@@ -37,19 +42,24 @@ runs:
         detected=$(find "$SRC" -maxdepth 1 -type f \( -name '*.yaml' -o -name '.*.yaml' \) 2>/dev/null | wc -l | tr -d ' ')
         existing_pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 
-        # No drift: close any open drift PR (and its branch) so it doesn't go stale.
-        if [[ "$detected" -eq 0 ]]; then
+        # Only raise a PR when terraform confirms drift AND we have config changes
+        # to show. terraform is the authority on whether drift is real; `compare`
+        # only builds the PR content. This avoids false positives from differences
+        # terraform treats as no-ops (e.g. empty vs null fields). Drift terraform
+        # sees but compare can't represent (deleted/archived repos) is surfaced by
+        # the workflow's `Inspect drift` warning instead.
+        if [[ "$DRIFT_DETECTED" != "true" || "$detected" -eq 0 ]]; then
           if [[ -n "$existing_pr" ]]; then
             gh pr close "$existing_pr" --delete-branch \
               --comment "No drift detected — resolved. Closing automatically."
-            echo "Closed drift PR #$existing_pr (no drift remains)."
+            echo "Closed drift PR #$existing_pr (no actionable drift remains)."
           else
-            echo "No drift detected; nothing to do."
+            echo "No actionable drift; nothing to do."
           fi
           exit 0
         fi
 
-        echo "Detected $detected changed repository config(s)."
+        echo "Terraform confirmed drift; $detected changed repository config(s) to surface."
 
         # Rebuild the drift branch from the base each run so the PR only ever
         # reflects the current set of changes (untracked importer_tmp_dir files

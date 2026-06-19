@@ -126,3 +126,6 @@ jobs:
           branch-name: "drift/detected-changes"
           reviewers: ${{ inputs.reviewers }}
           github-token: ${{ steps.generate-token.outputs.token }}
+          # terraform is the authority on whether drift is real (avoids false
+          # positives from config differences it treats as no-ops).
+          drift-detected: ${{ steps.graformer.outputs.plan-exitcode == '2' }}
