@@ -14,86 +14,39 @@ on:
         required: true
       reviewers:
         type: string
-        description: "Comma-separated reviewers (users or org/team slugs) to request on the unmanaged-repos drift PR"
+        description: "Comma-separated reviewers (users or org/team slugs) to request on the drift PR"
         required: false
         default: ""
-      detect_environment:
-        type: string
-        description: >-
-          Deployment environment that provides APP_ID for the management app,
-          used by the unmanaged-repos detection job. Because this runs unattended
-          on a schedule, the chosen environment MUST NOT have required-reviewer
-          or wait-timer protection rules, or every run will stall pending manual
-          approval. Defaults to 'schedule'.
-        required: false
-        default: "schedule"
     secrets:
       tfc_token:
         description: "Terraform Cloud API token"
         required: true
       app_private_key:
-        description: "GitHub App private key for the management app (used by the unmanaged-repos detection job)"
+        description: "GitHub App private key for the management app (used to import repos and raise the drift PR)"
         required: true
 
+# A full org import + plan can run longer than the schedule interval; prevent
+# overlapping runs from racing on the shared drift branch / PR.
+concurrency:
+  group: drift-check
+  cancel-in-progress: false
+
 jobs:
-  # Detects config drift on repositories already managed by Terraform.
+  # Detects drift between the desired config and the actual GitHub state — both
+  # manual edits to already-managed repos AND repos created outside of GCSS —
+  # and surfaces everything in a single, continuously-updated PR. See GCSS-1132.
   drift-check:
     name: "Drift Check"
     runs-on: ubuntu-latest
+    # The 'schedule' environment must provide APP_ID + app_private_key (management
+    # app, which needs org-wide "All repositories" access so new repos are visible
+    # to the importer), plus WORKSPACE for the plan. Because this runs unattended
+    # on a schedule, the environment MUST NOT have required-reviewer/wait-timer
+    # protection rules, or every run will stall pending manual approval.
     environment: schedule
-    steps:
-      - name: Checkout GCSS
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          repository: G-Research/github-terraformer
-          ref: ${{ inputs.gcss_ref }}
-          persist-credentials: false
-
-      - name: GCSS config setup
-        uses: ./.github/actions/gcss-config-setup
-        with:
-          checkout-sha: ${{ github.sha }}
-          checkout-token: ${{ github.token }}
-
-      - name: Setup terraform and run plan
-        id: graformer
-        uses: ./.github/actions/graformer
-        with:
-          tfc-token: ${{ secrets.tfc_token }}
-          tfc-organization: ${{ inputs.tfc_org }}
-          tfc-workspace: ${{ vars.WORKSPACE }}
-          refresh: 'true'
-
-        # 0 for green plan no changes, 2 for green plan with changes
-      - name: Inspect drift
-        run: |
-          if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == 2 ]]; then
-            echo "Drift detected!"
-            exit 1
-          else
-            echo "No drift detected."
-          fi
-
-  # Detects repositories that exist in the organisation but are not yet managed
-  # by GCSS (e.g. created manually in the GitHub UI) — invisible to `terraform
-  # plan` above — and surfaces them in a single, continuously-updated PR.
-  # See GCSS-1132. Runs independently of the terraform-plan drift job.
-  detect-unmanaged-repos:
-    name: "Detect unmanaged repositories"
-    runs-on: ubuntu-latest
-    # Environment supplies APP_ID for the management app, which must have
-    # org-wide ("All repositories") access or new repos are invisible to the
-    # importer (see GCSS-1132). Must be free of approval/protection rules — see
-    # the 'detect_environment' input description.
-    environment: ${{ inputs.detect_environment }}
     permissions:
       contents: write
       pull-requests: write
-    # A full org import can run longer than the schedule interval; prevent
-    # overlapping runs from racing on the shared drift branch / PR.
-    concurrency:
-      group: detect-unmanaged-repos
-      cancel-in-progress: false
     steps:
       - name: Generate a token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -121,36 +74,50 @@ jobs:
         with:
           just-version: '1.4.0'
 
-      - name: Exclude already-managed repositories from the import
-        shell: bash
-        env:
-          OWNER: ${{ github.repository_owner }}
-        run: |
-          set -euo pipefail
-          config="feature/github-repo-importer/import-config.yaml"
-          repos_dir="feature/github-repo-provisioning/gcss_config/repos"
-          # The importer skips repos listed in ignored_repos, so treating every
-          # already-configured repo as ignored makes it import ONLY unmanaged
-          # repositories — avoiding a full-org import on every run (GCSS-1132).
-          if [[ -d "$repos_dir" ]]; then
-            while IFS= read -r f; do
-              name="$(basename "$f" .yaml)"
-              yq -i ".ignored_repos = ((.ignored_repos // []) + [\"${OWNER}/${name}\"])" "$config"
-            done < <(find "$repos_dir" -maxdepth 1 -type f -name '*.yaml')
-          fi
-          echo "Effective ignored_repos after excluding managed repositories:"
-          yq '.ignored_repos' "$config"
-
-      - name: Import unmanaged repos
+      # Import the current GitHub state of every repo. New repos (absent from
+      # Terraform state) get YAML generated for them; managed repos get their
+      # current state captured for comparison.
+      - name: Import repos
         working-directory: feature/github-repo-importer
         run: just import-repos
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           OWNER: ${{ github.repository_owner }}
 
-      - name: Open or update the drift PR
+      # Drop everything that matches the committed config, leaving only repos
+      # that actually changed — new repos and manual edits to managed ones.
+      - name: Filter to changed configs
+        uses: ./.github/actions/compare
+        with:
+          working-directory: feature/github-repo-importer
+          source-directory: "../github-repo-provisioning/gcss_config/importer_tmp_dir/"
+          target-directory: "../github-repo-provisioning/gcss_config/repos/"
+
+      # Run the plan over the changed objects (new repos are imported via the
+      # module's import blocks, managed-repo drift is caught by -refresh).
+      - name: Setup terraform and run plan
+        id: graformer
+        uses: ./.github/actions/graformer
+        with:
+          tfc-token: ${{ secrets.tfc_token }}
+          tfc-organization: ${{ inputs.tfc_org }}
+          tfc-workspace: ${{ vars.WORKSPACE }}
+          refresh: 'true'
+
+        # 0 = no changes, 2 = drift present.
+      - name: Inspect drift
+        run: |
+          if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == 2 ]]; then
+            echo "Drift detected — see the drift PR."
+          else
+            echo "No drift detected."
+          fi
+
+      # Raise / update / close a single PR with the detected changes. Reviewers
+      # decide whether to merge (adopt the change into config) or revert manually.
+      - name: Open, update or close the drift PR
         uses: ./.github/actions/drift-pr
         with:
-          branch-name: "drift/unmanaged-repos"
+          branch-name: "drift/detected-changes"
           reviewers: ${{ inputs.reviewers }}
           github-token: ${{ steps.generate-token.outputs.token }}
