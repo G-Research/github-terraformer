@@ -108,7 +108,12 @@ jobs:
       - name: Inspect drift
         run: |
           if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == 2 ]]; then
-            echo "Drift detected — see the drift PR."
+            # Most drift is surfaced as a PR by the next step. Some terraform-level
+            # drift can't be represented as a config change and so won't appear in
+            # the PR — e.g. a managed repo deleted or archived on GitHub. Emit a
+            # warning so that case stays visible in the run summary.
+            echo "::warning::Terraform detected drift. Config-representable changes are raised as a drift PR; if no PR appears, investigate (e.g. a deleted or archived managed repo)."
+            echo "Drift detected — see the drift PR (or the warning above if none was raised)."
           else
             echo "No drift detected."
           fi
