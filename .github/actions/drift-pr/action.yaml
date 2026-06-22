@@ -1,0 +1,109 @@
+name: "Drift PR"
+description: "Opens, updates, or closes a single PR with repos whose GitHub state has drifted from the managed config (new repos or manual edits)"
+inputs:
+  branch-name:
+    description: "Stable branch used for the drift PR"
+    required: false
+    default: "drift/detected-changes"
+  reviewers:
+    description: "Comma-separated reviewers (users or org/team slugs) to request on the PR"
+    required: false
+    default: ""
+  github-token:
+    description: "Token used to push and manage the PR"
+    required: true
+  drift-detected:
+    description: "Whether `terraform plan` reported drift (exit code 2). A PR is only opened when terraform confirms real drift — this avoids false positives from config differences terraform treats as no-ops (e.g. empty vs null fields)."
+    required: false
+    default: "false"
+runs:
+  using: "composite"
+  steps:
+    - name: Configure git
+      shell: bash
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+    - name: Open, update or close the drift PR
+      shell: bash
+      working-directory: feature/github-repo-provisioning/gcss_config
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BRANCH: ${{ inputs.branch-name }}
+        REVIEWERS: ${{ inputs.reviewers }}
+        BASE: ${{ github.ref_name }}
+        DRIFT_DETECTED: ${{ inputs.drift-detected }}
+      run: |
+        set -euo pipefail
+        SRC="importer_tmp_dir"
+
+        # How many changed repo configs did the compare step leave behind?
+        detected=$(find "$SRC" -maxdepth 1 -type f \( -name '*.yaml' -o -name '.*.yaml' \) 2>/dev/null | wc -l | tr -d ' ')
+        existing_pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+
+        # Only raise a PR when terraform confirms drift AND we have config changes
+        # to show. terraform is the authority on whether drift is real; `compare`
+        # only builds the PR content. This avoids false positives from differences
+        # terraform treats as no-ops (e.g. empty vs null fields). Drift terraform
+        # sees but compare can't represent (deleted/archived repos) is surfaced by
+        # the workflow's `Inspect drift` warning instead.
+        if [[ "$DRIFT_DETECTED" != "true" || "$detected" -eq 0 ]]; then
+          if [[ -n "$existing_pr" ]]; then
+            gh pr close "$existing_pr" --delete-branch \
+              --comment "No drift detected — resolved. Closing automatically."
+            echo "Closed drift PR #$existing_pr (no actionable drift remains)."
+          else
+            echo "No actionable drift; nothing to do."
+          fi
+          exit 0
+        fi
+
+        echo "Terraform confirmed drift; $detected changed repository config(s) to surface."
+
+        # Rebuild the drift branch from the base each run so the PR only ever
+        # reflects the current set of changes (untracked importer_tmp_dir files
+        # are preserved across the checkout).
+        git fetch origin "$BASE"
+        git checkout -B "$BRANCH" "origin/$BASE"
+        git add "$SRC"
+
+        # Nothing staged means the detected configs are already present on the
+        # base branch (e.g. a drift PR was just merged and is awaiting
+        # promotion); there is nothing to surface, so exit cleanly instead of
+        # failing on an empty commit under `set -e`.
+        if git diff --cached --quiet; then
+          echo "Detected configs already present on $BASE (pending promotion); nothing to surface."
+          exit 0
+        fi
+        git commit -m "Detected configuration drift (GCSS-1132)"
+
+        # Push only when the remote branch isn't already identical (avoids
+        # re-notifying reviewers every run), but always continue so that a PR is
+        # (re)opened below if one isn't already present — e.g. when a previous
+        # drift PR was closed without deleting the branch.
+        if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+          git fetch origin "$BRANCH"
+          if git diff --quiet "origin/$BRANCH" HEAD; then
+            echo "Remote drift branch already up to date; skipping push."
+          else
+            git push --force-with-lease origin "$BRANCH"
+          fi
+        else
+          git push origin "$BRANCH"
+        fi
+
+        # Ensure exactly one open drift PR exists.
+        if [[ -z "$existing_pr" ]]; then
+          pr_url=$(gh pr create \
+            --title "Configuration drift detected" \
+            --body "These repositories have drifted from their managed configuration — either created outside GCSS (not yet managed) or manually edited outside Terraform. The YAML reflects the current GitHub state. Merge this PR to adopt the change into config, or revert the change manually if it was unintended." \
+            --base "$BASE" \
+            --head "$BRANCH")
+          echo "Opened new drift PR: $pr_url"
+          if [[ -n "${REVIEWERS}" ]]; then
+            gh pr edit "$pr_url" --add-reviewer "${REVIEWERS}" || echo "Warning: could not request reviewers '${REVIEWERS}'"
+          fi
+        else
+          echo "Updated existing drift PR #$existing_pr."
+        fi

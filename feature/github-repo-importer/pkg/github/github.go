@@ -55,6 +55,18 @@ func DecodeAppsList() (*AppsList, error) {
 	return &appsList, nil
 }
 
+// nilIfEmpty normalises a pointer to an empty string to nil. GitHub returns
+// optional free-text fields (e.g. description, homepage) inconsistently as ""
+// or null over a repo's lifetime, and Terraform treats them as equivalent.
+// Collapsing "" to nil keeps a fresh import byte-stable against the committed
+// config so drift detection doesn't report spurious changes.
+func nilIfEmpty(s *string) *string {
+	if s == nil || *s == "" {
+		return nil
+	}
+	return s
+}
+
 func ImportRepo(repoName string) (*Repository, error) {
 	fmt.Println("Importing repository: ", repoName)
 
@@ -172,9 +184,9 @@ func ImportRepo(repoName string) (*Repository, error) {
 	return &Repository{
 		Name:                       repo.GetName(),
 		Owner:                      repo.GetOwner().GetLogin(),
-		Description:                repo.Description,
+		Description:                nilIfEmpty(repo.Description),
 		Visibility:                 repo.GetVisibility(),
-		HomepageURL:                repo.Homepage,
+		HomepageURL:                nilIfEmpty(repo.Homepage),
 		DefaultBranch:              repo.GetDefaultBranch(),
 		HasIssues:                  repo.HasIssues,
 		HasProjects:                repo.HasProjects,

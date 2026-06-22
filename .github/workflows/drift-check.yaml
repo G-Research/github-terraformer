@@ -12,17 +12,50 @@ on:
         type: string
         description: "Terraform Cloud organization"
         required: true
+      reviewers:
+        type: string
+        description: "Comma-separated reviewers (users or org/team slugs) to request on the drift PR"
+        required: false
+        default: ""
     secrets:
       tfc_token:
         description: "Terraform Cloud API token"
         required: true
+      app_private_key:
+        description: "GitHub App private key for the management app (used to import repos and raise the drift PR)"
+        required: true
+
+# A full org import + plan can run longer than the schedule interval; prevent
+# overlapping runs from racing on the shared drift branch / PR.
+concurrency:
+  group: drift-check
+  cancel-in-progress: false
 
 jobs:
+  # Detects drift between the desired config and the actual GitHub state — both
+  # manual edits to already-managed repos AND repos created outside of GCSS —
+  # and surfaces everything in a single, continuously-updated PR. See GCSS-1132.
   drift-check:
     name: "Drift Check"
     runs-on: ubuntu-latest
+    # The 'schedule' environment must provide APP_ID + app_private_key (management
+    # app, which needs org-wide "All repositories" access so new repos are visible
+    # to the importer), plus WORKSPACE for the plan. Because this runs unattended
+    # on a schedule, the environment MUST NOT have required-reviewer/wait-timer
+    # protection rules, or every run will stall pending manual approval.
     environment: schedule
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
+      - name: Generate a token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+
       - name: Checkout GCSS
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
@@ -34,8 +67,34 @@ jobs:
         uses: ./.github/actions/gcss-config-setup
         with:
           checkout-sha: ${{ github.sha }}
-          checkout-token: ${{ github.token }}
+          checkout-token: ${{ steps.generate-token.outputs.token }}
 
+      - name: Setup Just
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
+        with:
+          just-version: '1.4.0'
+
+      # Import the current GitHub state of every repo. New repos (absent from
+      # Terraform state) get YAML generated for them; managed repos get their
+      # current state captured for comparison.
+      - name: Import repos
+        working-directory: feature/github-repo-importer
+        run: just import-repos
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+
+      # Drop everything that matches the committed config, leaving only repos
+      # that actually changed — new repos and manual edits to managed ones.
+      - name: Filter to changed configs
+        uses: ./.github/actions/compare
+        with:
+          working-directory: feature/github-repo-importer
+          source-directory: "../github-repo-provisioning/gcss_config/importer_tmp_dir/"
+          target-directory: "../github-repo-provisioning/gcss_config/repos/"
+
+      # Run the plan over the changed objects (new repos are imported via the
+      # module's import blocks, managed-repo drift is caught by -refresh).
       - name: Setup terraform and run plan
         id: graformer
         uses: ./.github/actions/graformer
@@ -45,12 +104,28 @@ jobs:
           tfc-workspace: ${{ vars.WORKSPACE }}
           refresh: 'true'
 
-        # 0 for green plan no changes, 2 for green plan with changes
+        # 0 = no changes, 2 = drift present.
       - name: Inspect drift
         run: |
           if [[ "${{ steps.graformer.outputs.plan-exitcode }}" == 2 ]]; then
-            echo "Drift detected!"
-            exit 1
+            # Most drift is surfaced as a PR by the next step. Some terraform-level
+            # drift can't be represented as a config change and so won't appear in
+            # the PR — e.g. a managed repo deleted or archived on GitHub. Emit a
+            # warning so that case stays visible in the run summary.
+            echo "::warning::Terraform detected drift. Config-representable changes are raised as a drift PR; if no PR appears, investigate (e.g. a deleted or archived managed repo)."
+            echo "Drift detected — see the drift PR (or the warning above if none was raised)."
           else
             echo "No drift detected."
           fi
+
+      # Raise / update / close a single PR with the detected changes. Reviewers
+      # decide whether to merge (adopt the change into config) or revert manually.
+      - name: Open, update or close the drift PR
+        uses: ./.github/actions/drift-pr
+        with:
+          branch-name: "drift/detected-changes"
+          reviewers: ${{ inputs.reviewers }}
+          github-token: ${{ steps.generate-token.outputs.token }}
+          # terraform is the authority on whether drift is real (avoids false
+          # positives from config differences it treats as no-ops).
+          drift-detected: ${{ steps.graformer.outputs.plan-exitcode == '2' }}
