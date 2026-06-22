@@ -8,7 +8,7 @@ import-repo repoName:
 
 import-repos:
   go run main.go bulk-import -c import-config.yaml
-  mkdir -p "configs/$OWNER" "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/"
+  mkdir -p "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/"
   find configs/"$OWNER" -maxdepth 1 -type f \( -name "*.yaml" -o -name ".*.yaml" \) -print -exec cp {} "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/" \;
 
 test:
