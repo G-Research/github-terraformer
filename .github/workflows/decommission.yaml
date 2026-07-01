@@ -1,0 +1,203 @@
+name: Decommission repository
+
+# Forgets a repository that has LEFT the org (transferred out or deleted) from the
+# Terraform state WITHOUT destroying it, so the shared workspace stops trying to manage
+# a repo it no longer owns (issue #15). Deleting the repo's YAML alone is not enough:
+# Terraform would then plan to DESTROY a repo the org no longer owns, breaking plans for
+# every repository.
+#
+# Two jobs, matching the approval model:
+#   discover      Reads the workspace state and lists every address the repo owns — the
+#                 repository module plus its rulesets/custom properties, matched by their
+#                 `repository` attribute (so hashed ruleset keys are never missed). It
+#                 prints the list and hands it to the next job.
+#   decommission  Gated by the `decommission` environment (required reviewers = the
+#                 approval before any state change). Locks the workspace, runs
+#                 `terraform state rm` on the reviewed list, then unlocks. State-only:
+#                 the GitHub repository is left untouched.
+#
+# Operational note: remove the repo's repos/<repo>.yaml via the normal config PR as part
+# of the same change so config and state stay consistent (no recreate on the next apply).
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        description: "Repository to decommission (matches repos/<repo>.yaml)"
+        type: string
+        required: true
+      gcss_ref:
+        description: "GCSS ref to checkout"
+        type: string
+        required: false
+        default: "main"
+      tfc_org:
+        description: "Terraform Cloud organization"
+        type: string
+        required: true
+    secrets:
+      tfc_token:
+        description: "Terraform Cloud API token"
+        required: true
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repository to decommission (matches repos/<repo>.yaml)"
+        type: string
+        required: true
+      tfc_org:
+        description: "Terraform Cloud organization"
+        type: string
+        required: true
+
+jobs:
+  discover:
+    name: Discover state resources
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      addresses: ${{ steps.find.outputs.addresses }}
+      count: ${{ steps.find.outputs.count }}
+    steps:
+      - name: Checkout GCSS
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          cli_config_credentials_token: ${{ secrets.tfc_token }}
+
+      - name: Terraform init
+        working-directory: feature/github-repo-provisioning
+        env:
+          TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
+          TF_WORKSPACE: ${{ vars.WORKSPACE }}
+        run: |
+          ln -sf backend.tf.hcp backend.tf
+          terraform init -input=false
+
+      - name: Find state addresses owned by the repository
+        id: find
+        working-directory: feature/github-repo-provisioning
+        env:
+          TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
+          TF_WORKSPACE: ${{ vars.WORKSPACE }}
+          REPO: ${{ inputs.repo }}
+        run: |
+          set -euo pipefail
+          terraform show -json > state.json
+
+          {
+            # The repository module instance covers the repo and everything nested in it.
+            if terraform state list | grep -qF -- "module.repository[\"$REPO\"]"; then
+              echo "module.repository[\"$REPO\"]"
+            fi
+            # Root-level rulesets and custom properties are matched by their `repository`
+            # attribute, so hashed ruleset keys (sha256("<repo>/<name>")) are never missed.
+            jq -r --arg repo "$REPO" '
+              .values.root_module.resources[]
+              | select(.type == "github_repository_ruleset" or .type == "github_repository_custom_property")
+              | select(.values.repository == $repo)
+              | .address
+            ' state.json
+          } > addresses.txt
+
+          count=$(grep -c . addresses.txt || true)
+          echo "Found $count address(es) for '$REPO':"
+          cat addresses.txt
+
+          {
+            echo "### Decommission plan for \`$REPO\`"
+            echo "The \`decommission\` job will run \`terraform state rm\` on:"
+            echo '```'
+            cat addresses.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Hand the list to the gated job. base64 keeps a multi-line value in one output.
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "addresses=$(base64 -w0 addresses.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Nothing to decommission
+        if: steps.find.outputs.count == '0'
+        run: echo "::notice::No state resources found for '${{ inputs.repo }}'. Nothing to do."
+
+  decommission:
+    name: Remove resources from state
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ubuntu-latest
+    # Required reviewers on this environment are the approval gate: the job — and every
+    # state change it makes — waits until an authorized reviewer clicks Approve.
+    environment: decommission
+    permissions:
+      contents: read
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
+      TF_WORKSPACE: ${{ vars.WORKSPACE }}
+    steps:
+      - name: Checkout GCSS
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          cli_config_credentials_token: ${{ secrets.tfc_token }}
+
+      - name: Terraform init
+        working-directory: feature/github-repo-provisioning
+        run: |
+          ln -sf backend.tf.hcp backend.tf
+          terraform init -input=false
+
+      - name: Resolve workspace id
+        id: ws
+        run: |
+          set -euo pipefail
+          id=$(curl -sf \
+            -H "Authorization: Bearer ${{ secrets.tfc_token }}" \
+            -H "Content-Type: application/vnd.api+json" \
+            "https://app.terraform.io/api/v2/organizations/${{ inputs.tfc_org }}/workspaces/${{ vars.WORKSPACE }}" \
+            | jq -r '.data.id')
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Lock workspace
+        run: |
+          set -euo pipefail
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.tfc_token }}" \
+            -H "Content-Type: application/vnd.api+json" \
+            -d '{"reason":"decommission ${{ inputs.repo }}"}' \
+            "https://app.terraform.io/api/v2/workspaces/${{ steps.ws.outputs.id }}/actions/lock"
+
+      - name: Remove resources from state
+        working-directory: feature/github-repo-provisioning
+        run: |
+          set -euo pipefail
+          base64 -d <<< "${{ needs.discover.outputs.addresses }}" > addresses.txt
+          while IFS= read -r addr; do
+            [ -z "$addr" ] && continue
+            # Idempotent: skip anything already gone, so a re-run or resume is safe.
+            if terraform state list | grep -qF -- "$addr"; then
+              terraform state rm "$addr"
+            else
+              echo "already absent, skipping: $addr"
+            fi
+          done < addresses.txt
+
+      - name: Unlock workspace
+        if: always() && steps.ws.outputs.id != ''
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.tfc_token }}" \
+            -H "Content-Type: application/vnd.api+json" \
+            "https://app.terraform.io/api/v2/workspaces/${{ steps.ws.outputs.id }}/actions/unlock"
