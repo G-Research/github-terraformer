@@ -22,6 +22,11 @@ const (
 	VisibilityPrivate = "private"
 	VisibilityPublic  = "public"
 
+	// Team visibility (GitHub UI terms; the provider's `privacy` argument
+	// maps visible -> closed, secret -> secret)
+	TeamVisibilityVisible = "visible"
+	TeamVisibilitySecret  = "secret"
+
 	// Permission levels
 	PermissionRead     = "read"
 	PermissionWrite    = "write"

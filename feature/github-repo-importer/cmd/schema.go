@@ -9,33 +9,46 @@ import (
 	"github.com/invopop/jsonschema"
 	"github.com/spf13/cobra"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
+
+	"github.com/gr-oss-devops/github-repo-importer/pkg/github"
 )
 
 const (
-	schemaOutDir  = ".schemas"
-	schemaOutFile = "repository-config.schema.json"
+	schemaOutDir       = ".schemas"
+	schemaOutFile      = "repository-config.schema.json"
+	teamsSchemaOutFile = "teams-config.schema.json"
 )
 
 var schemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "Generate JSON Schema for the repository config",
+	Short: "Generate JSON Schema for the repository and teams configs",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projectRoot := "../../"
 		if err := os.MkdirAll(fmt.Sprintf("%s/%s", projectRoot, schemaOutDir), 0o755); err != nil {
 			return fmt.Errorf("create %s: %w", schemaOutDir, err)
 		}
 
-		outPath := filepath.Join(projectRoot, schemaOutDir, schemaOutFile)
-
-		data, err := MarshalRepositoryConfigSchema()
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(outPath, data, 0o644); err != nil {
-			return fmt.Errorf("write schema file: %w", err)
+		schemas := []struct {
+			outFile string
+			marshal func() ([]byte, error)
+		}{
+			{schemaOutFile, MarshalRepositoryConfigSchema},
+			{teamsSchemaOutFile, MarshalTeamsConfigSchema},
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "Schema written to %s\n", outPath)
+		for _, s := range schemas {
+			outPath := filepath.Join(projectRoot, schemaOutDir, s.outFile)
+
+			data, err := s.marshal()
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(outPath, data, 0o644); err != nil {
+				return fmt.Errorf("write schema file: %w", err)
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Schema written to %s\n", outPath)
+		}
 		return nil
 	},
 }
@@ -136,6 +149,32 @@ func BuildRepositoryConfigSchema() *jsonschema.Schema {
 
 		return schema
 	}
+}
+
+// MarshalTeamsConfigSchema returns the JSON-encoded teams config schema.
+func MarshalTeamsConfigSchema() ([]byte, error) {
+	data, err := json.MarshalIndent(BuildTeamsConfigSchema(), "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal schema: %w", err)
+	}
+	return data, nil
+}
+
+// BuildTeamsConfigSchema reflects the JSON schema for the organisation teams
+// configuration (organisation/teams.yaml) from the Go structs. Unlike the
+// repository config schema it needs no manual conditional constraints; the
+// cross-record checks live in github.TeamsConfig.Validate instead.
+func BuildTeamsConfigSchema() *jsonschema.Schema {
+	reflector := &jsonschema.Reflector{
+		AllowAdditionalProperties: false,
+		FieldNameTag:              "yaml",
+	}
+
+	schema := reflector.Reflect(&github.TeamsConfig{})
+	schema.Title = "Teams Configuration"
+	schema.ID = jsonschema.ID(fmt.Sprintf("https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s", schemaOutDir, teamsSchemaOutFile))
+
+	return schema
 }
 
 func init() {
