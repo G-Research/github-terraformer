@@ -216,7 +216,10 @@ jobs:
             [ -z "$addr" ] && continue
             # Idempotent: skip anything already gone, so a re-run or resume is safe.
             if terraform state list | grep -qF -- "$addr"; then
-              terraform state rm "$addr"
+              # -lock=false is required: we already hold the workspace lock via the API
+              # (Lock step), so state rm must not try to acquire its own lock or it
+              # deadlocks against ours. Verified against a Terraform Cloud workspace.
+              terraform state rm -lock=false "$addr"
             else
               echo "already absent, skipping: $addr"
             fi
