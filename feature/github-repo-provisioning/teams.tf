@@ -13,5 +13,4 @@ resource "github_team" "team" {
   description          = try(each.value.description, null)
   privacy              = try(each.value.visibility, "visible") == "secret" ? "secret" : "closed"
   notification_setting = coalesce(try(each.value.notifications, true), true) ? "notifications_enabled" : "notifications_disabled"
-  parent_team_id       = try(each.value.parent, null) != null ? github_team.team[each.value.parent].id : null
 }
