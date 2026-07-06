@@ -12,10 +12,9 @@ name: Decommission repository
 #                 attribute matches (so hashed ruleset keys are never missed). It
 #                 prints the list and hands it to the next job.
 #   decommission  Gated by the `decommission` environment (required reviewers = the
-#                 approval before any state change). Locks the workspace, runs
-#                 `terraform state rm` on the reviewed list, verifies nothing still
-#                 references the repo, then unlocks. State-only: the GitHub repository
-#                 is left untouched.
+#                 approval before any state change). Runs `terraform state rm` on the
+#                 reviewed list, then verifies nothing still references the repo.
+#                 State-only: the GitHub repository is left untouched.
 #
 # Operational note: remove the repo's repos/<repo>.yaml via the normal config PR as part
 # of the same change so config and state stay consistent (no recreate on the next apply).
@@ -43,21 +42,6 @@ on:
     secrets:
       tfc_token:
         description: "Terraform Cloud API token"
-        required: true
-  workflow_dispatch:
-    inputs:
-      repo:
-        description: "Repository to decommission (matches repos/<repo>.yaml)"
-        type: string
-        required: true
-      gcss_ref:
-        description: "GCSS ref to checkout"
-        type: string
-        required: false
-        default: "main"
-      tfc_org:
-        description: "Terraform Cloud organization"
-        type: string
         required: true
 
 # Serialize all decommission runs against a workspace so two can't race on the same
@@ -219,42 +203,6 @@ jobs:
           ln -sf backend.tf.hcp backend.tf
           terraform init -input=false
 
-      - name: Resolve workspace id
-        id: ws
-        env:
-          TFC_TOKEN: ${{ secrets.tfc_token }}
-        run: |
-          set -euo pipefail
-          id=$(curl -fsS --retry 3 --retry-all-errors \
-            -H "Authorization: Bearer $TFC_TOKEN" \
-            -H "Content-Type: application/vnd.api+json" \
-            "https://app.terraform.io/api/v2/organizations/$TF_CLOUD_ORGANIZATION/workspaces/$TF_WORKSPACE" \
-            | jq -r '.data.id')
-          if [ -z "$id" ] || [ "$id" = "null" ]; then
-            echo "::error::could not resolve workspace id for '$TF_WORKSPACE'."
-            exit 1
-          fi
-          echo "id=$id" >> "$GITHUB_OUTPUT"
-
-      # --retry only (no --retry-all-errors): the lock POST is not idempotent — retrying
-      # a request the server already applied turns into a 409 against our own lock.
-      - name: Lock workspace
-        id: lock
-        env:
-          TFC_TOKEN: ${{ secrets.tfc_token }}
-          WS_ID: ${{ steps.ws.outputs.id }}
-          REPO: ${{ inputs.repo }}
-        run: |
-          set -euo pipefail
-          if ! curl -fsS -X POST --retry 3 \
-            -H "Authorization: Bearer $TFC_TOKEN" \
-            -H "Content-Type: application/vnd.api+json" \
-            -d "$(jq -n --arg reason "decommission $REPO" '{reason: $reason}')" \
-            "https://app.terraform.io/api/v2/workspaces/$WS_ID/actions/lock"; then
-            echo "::error::failed to lock workspace '$TF_WORKSPACE' — it may be held by a run or another user. Check the lock in Terraform Cloud (a timed-out lock request may still have been applied) and re-run."
-            exit 1
-          fi
-
       - name: Remove resources from state
         working-directory: feature/github-repo-provisioning
         env:
@@ -281,10 +229,10 @@ jobs:
             echo "All addresses already absent from state. Nothing to remove."
             exit 0
           fi
-          # -lock=false is required: we already hold the workspace lock via the API
-          # (Lock step), so state rm must not try to acquire its own lock or it
-          # deadlocks against ours. Verified against a Terraform Cloud workspace.
-          terraform state rm -lock=false "${to_remove[@]}"
+          # state rm acquires the workspace lock itself for the duration of the operation
+          # (Terraform Cloud serializes runs on a workspace), so no separate lock step is
+          # needed.
+          terraform state rm "${to_remove[@]}"
 
       # The approved list was computed before the approval wait; anything that appeared
       # since (or a resource type discover missed) would be left behind and break the
@@ -313,20 +261,3 @@ jobs:
             exit 1
           fi
           echo "State no longer references '$REPO'."
-
-      # Unlock only a lock we actually acquired, so a failed Lock step (e.g. someone else
-      # holds it) never makes us release their lock. Retry hard: a workspace left locked
-      # blocks every plan and apply in the org.
-      - name: Unlock workspace
-        if: always() && steps.lock.outcome == 'success'
-        env:
-          TFC_TOKEN: ${{ secrets.tfc_token }}
-          WS_ID: ${{ steps.ws.outputs.id }}
-        run: |
-          if ! curl -fsS -X POST --retry 3 --retry-all-errors \
-            -H "Authorization: Bearer $TFC_TOKEN" \
-            -H "Content-Type: application/vnd.api+json" \
-            "https://app.terraform.io/api/v2/workspaces/$WS_ID/actions/unlock"; then
-            echo "::error::failed to unlock workspace '$TF_WORKSPACE' — it stays locked and blocks all plans/applies. Unlock it manually in Terraform Cloud (workspace → force unlock)."
-            exit 1
-          fi
