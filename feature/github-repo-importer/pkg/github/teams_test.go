@@ -72,6 +72,18 @@ func TestTeamsConfigValidate(t *testing.T) {
 			wantErrors: nil,
 		},
 		{
+			name: "duplicate team name rejected",
+			config: TeamsConfig{
+				Teams: []Team{
+					{Name: "platform", Visibility: TeamVisibilityVisible},
+					{Name: "platform", Visibility: TeamVisibilityVisible},
+				},
+			},
+			wantErrors: []string{
+				`team "platform" is defined more than once in teams.yaml`,
+			},
+		},
+		{
 			name: "multiple violations are all reported in one call",
 			config: TeamsConfig{
 				Teams: []Team{

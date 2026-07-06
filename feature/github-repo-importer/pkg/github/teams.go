@@ -19,6 +19,9 @@ func (c *TeamsConfig) Validate() []error {
 
 	teamsByName := make(map[string]Team, len(c.Teams))
 	for _, team := range c.Teams {
+		if _, exists := teamsByName[team.Name]; exists {
+			errs = append(errs, fmt.Errorf("team %q is defined more than once in teams.yaml", team.Name))
+		}
 		teamsByName[team.Name] = team
 	}
 
