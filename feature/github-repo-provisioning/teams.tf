@@ -1,6 +1,3 @@
-# Organisation teams, managed from gcss_config/organisation/teams.yaml.
-# The YAML uses GitHub UI terms (visibility: visible | secret) which map to the
-# provider's privacy argument as visible -> closed, secret -> secret.
 locals {
   teams_config_files = fileset(path.module, "gcss_config/organisation/teams.yaml")
 

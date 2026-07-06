@@ -53,7 +53,6 @@ var schemaCmd = &cobra.Command{
 	},
 }
 
-// MarshalRepositoryConfigSchema returns the JSON-encoded repository config schema.
 func MarshalRepositoryConfigSchema() ([]byte, error) {
 	data, err := json.MarshalIndent(BuildRepositoryConfigSchema(), "", "  ")
 	if err != nil {
@@ -62,10 +61,6 @@ func MarshalRepositoryConfigSchema() ([]byte, error) {
 	return data, nil
 }
 
-// BuildRepositoryConfigSchema reflects the JSON schema for the repository
-// configuration from the Go structs and applies the manual constraints that
-// cannot be expressed through struct tags. It is the single source of truth
-// shared by the `schema` and `validate` commands.
 func BuildRepositoryConfigSchema() *jsonschema.Schema {
 	{
 		reflector := &jsonschema.Reflector{
@@ -151,7 +146,6 @@ func BuildRepositoryConfigSchema() *jsonschema.Schema {
 	}
 }
 
-// MarshalTeamsConfigSchema returns the JSON-encoded teams config schema.
 func MarshalTeamsConfigSchema() ([]byte, error) {
 	data, err := json.MarshalIndent(BuildTeamsConfigSchema(), "", "  ")
 	if err != nil {
@@ -160,10 +154,6 @@ func MarshalTeamsConfigSchema() ([]byte, error) {
 	return data, nil
 }
 
-// BuildTeamsConfigSchema reflects the JSON schema for the organisation teams
-// configuration (organisation/teams.yaml) from the Go structs. Unlike the
-// repository config schema it needs no manual conditional constraints; the
-// cross-record checks live in github.TeamsConfig.Validate instead.
 func BuildTeamsConfigSchema() *jsonschema.Schema {
 	reflector := &jsonschema.Reflector{
 		AllowAdditionalProperties: false,

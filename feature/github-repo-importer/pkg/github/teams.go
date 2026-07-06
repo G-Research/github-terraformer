@@ -2,7 +2,6 @@ package github
 
 import "fmt"
 
-// TeamsConfig models the organisation/teams.yaml file in the config repo.
 type TeamsConfig struct {
 	Teams []Team `yaml:"teams,omitempty"`
 }
@@ -15,14 +14,6 @@ type Team struct {
 	Notifications *bool   `yaml:"notifications,omitempty"`
 }
 
-// Validate performs the cross-record checks that cannot be expressed in JSON
-// Schema alone: every `parent` must refer to a team defined in the same file,
-// and `secret` teams cannot take part in a hierarchy in either direction.
-//
-// Unlike Config.Validate, this returns []error rather than a single error:
-// cmd/validate.go's runValidate already collects and reports every violation
-// across repo configs in one run, and teams validation should surface all
-// problems in a file the same way instead of stopping at the first one.
 func (c *TeamsConfig) Validate() []error {
 	var errs []error
 
