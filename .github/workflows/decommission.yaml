@@ -1,27 +1,16 @@
 name: Decommission repository
 
-# Forgets a repository that has LEFT the org (transferred out or deleted) from the
-# Terraform state WITHOUT destroying it, so the shared workspace stops trying to manage
-# a repo it no longer owns (issue #15). Deleting the repo's YAML alone is not enough:
-# Terraform would then plan to DESTROY a repo the org no longer owns, breaking plans for
-# every repository.
+# Removes a repository that has left the org (transferred out or deleted) from Terraform
+# state without destroying it. Deleting its YAML alone would make Terraform plan a destroy
+# of a repo the org no longer owns, breaking every repository's plan.
 #
-# Two jobs, matching the approval model:
-#   discover      Reads the workspace state and lists every address the repo owns — the
-#                 repository module plus every root-level resource whose `repository`
-#                 attribute matches (so hashed ruleset keys are never missed). It
-#                 prints the list and hands it to the next job.
-#   decommission  Gated by the `decommission` environment (required reviewers = the
-#                 approval before any state change). Runs `terraform state rm` on the
-#                 reviewed list, then verifies nothing still references the repo.
-#                 State-only: the GitHub repository is left untouched.
+#   discover      Lists every state address the repo owns and hands it to the next job.
+#   decommission  After approval, runs `terraform state rm` on that list and verifies
+#                 nothing still references the repo.
 #
-# Operational note: remove the repo's repos/<repo>.yaml via the normal config PR as part
-# of the same change so config and state stay consistent (no recreate on the next apply).
-#
-# Consumer setup: WORKSPACE must be a REPOSITORY-level Actions variable, not scoped to
-# the `decommission` environment — the discover job and the concurrency group below run
-# outside any environment and cannot see environment-scoped variables.
+# Remove the repo's repos/<repo>.yaml via the normal config PR as part of the same change.
+# WORKSPACE must be a repository-level Actions variable: the discover job and the
+# concurrency group run outside the environment and can't read environment-scoped vars.
 
 on:
   workflow_call:
@@ -44,9 +33,7 @@ on:
         description: "Terraform Cloud API token"
         required: true
 
-# Serialize all decommission runs against a workspace so two can't race on the same
-# shared state. Queue rather than cancel — a half-finished state operation must not
-# be interrupted.
+# Serialize runs per workspace; queue rather than cancel so a state op isn't interrupted.
 concurrency:
   group: decommission-${{ vars.WORKSPACE }}
   cancel-in-progress: false
@@ -68,10 +55,6 @@ jobs:
           ref: ${{ inputs.gcss_ref }}
           persist-credentials: false
 
-      # The repo's config lives in the calling config repository. Refuse to touch state
-      # until its YAML has been removed there: otherwise config and state diverge and the
-      # next apply plans to recreate the (now foreign) repo. Removing the YAML first means
-      # the worst case in the gap before this runs is a failed apply, never a recreate.
       - name: Checkout config repo
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
@@ -83,21 +66,17 @@ jobs:
           REPO: ${{ inputs.repo }}
         run: |
           set -euo pipefail
-          # Reject anything that isn't a plain repository name before it reaches
-          # terraform/grep/the TFC API.
           if ! [[ "$REPO" =~ ^[A-Za-z0-9._-]+$ ]]; then
             echo "::error::'$REPO' is not a valid repository name."
             exit 1
           fi
-          # The guard is only meaningful against the config repo. When dispatched from
-          # github-terraformer itself the default checkout is NOT the config repo and the
-          # YAML check would pass vacuously — refuse instead of silently skipping it.
+          # No repos/ dir means this wasn't called from the config repo — refuse rather
+          # than let the check below pass vacuously.
           if [ ! -d config-repo/repos ]; then
-            echo "::error::checked-out repository has no repos/ directory — this workflow must be called from the config repository, not dispatched from github-terraformer."
+            echo "::error::checked-out repository has no repos/ directory — this workflow must be called from the config repository."
             exit 1
           fi
-          # Terraform reads both repos/ and importer_tmp_dir/ (imported-but-not-yet-
-          # promoted configs), so the repo must be absent from both.
+          # Terraform reads both repos/ and importer_tmp_dir/, so check both.
           for f in "config-repo/repos/$REPO.yaml" "config-repo/repos/$REPO.yml" \
                    "config-repo/importer_tmp_dir/$REPO.yaml" "config-repo/importer_tmp_dir/$REPO.yml"; do
             if [ -f "$f" ]; then
@@ -133,14 +112,11 @@ jobs:
           terraform show -json > state.json
 
           {
-            # The repository module instance covers the repo and everything nested in it.
             if terraform state list | grep -qF -- "module.repository[\"$REPO\"]"; then
               echo "module.repository[\"$REPO\"]"
             fi
-            # Any root-level resource is matched by its `repository` attribute, so hashed
-            # ruleset keys (sha256("<repo>/<name>")) are never missed and resource types
-            # added later are picked up without editing this list. `?` + `// []` keep this
-            # working on state with no root resources (or no state at all).
+            # Match root-level resources by their repository attribute so hashed ruleset
+            # keys are never missed; ? // [] tolerates empty or absent state.
             jq -r --arg repo "$REPO" '
               (.values.root_module.resources? // [])[]
               | select(.mode == "managed")
@@ -161,7 +137,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # Hand the list to the gated job. base64 keeps a multi-line value in one output.
+          # base64 keeps the multi-line list in a single job output.
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "addresses=$(base64 -w0 addresses.txt)" >> "$GITHUB_OUTPUT"
 
@@ -176,8 +152,7 @@ jobs:
     needs: discover
     if: needs.discover.outputs.count != '0'
     runs-on: ubuntu-latest
-    # Required reviewers on this environment are the approval gate: the job — and every
-    # state change it makes — waits until an authorized reviewer clicks Approve.
+    # Approval gate: required reviewers on this environment.
     environment: decommission
     permissions:
       contents: read
@@ -211,9 +186,7 @@ jobs:
           set -euo pipefail
           base64 -d <<< "$ADDRESSES_B64" > addresses.txt
 
-          # Snapshot state once and drop anything already gone, so a re-run or resume is
-          # safe; then remove everything in a single state rm (one state write, no
-          # partial-removal window between per-address invocations).
+          # Skip addresses already gone (safe re-run), then remove all in one state rm.
           terraform state list > current.txt
           to_remove=()
           while IFS= read -r addr; do
@@ -229,14 +202,11 @@ jobs:
             echo "All addresses already absent from state. Nothing to remove."
             exit 0
           fi
-          # state rm acquires the workspace lock itself for the duration of the operation
-          # (Terraform Cloud serializes runs on a workspace), so no separate lock step is
-          # needed.
+          # state rm takes the workspace lock itself; no separate lock step needed.
           terraform state rm "${to_remove[@]}"
 
-      # The approved list was computed before the approval wait; anything that appeared
-      # since (or a resource type discover missed) would be left behind and break the
-      # next plan. Fail loudly here instead — a re-run re-discovers and re-approves.
+      # The approved list predates the approval wait; fail if anything still references the
+      # repo so a re-run re-discovers and re-approves it.
       - name: Verify nothing in state still references the repository
         working-directory: feature/github-repo-provisioning
         env:
@@ -256,7 +226,7 @@ jobs:
             ] | .[]
           ' state.json)
           if [ -n "$leftovers" ]; then
-            echo "::error::state still references '$REPO' after removal — re-run the workflow to review and remove the remaining addresses:"
+            echo "::error::state still references '$REPO' after removal — re-run the workflow:"
             echo "$leftovers"
             exit 1
           fi
