@@ -8,9 +8,8 @@ name: Decommission repository
 #   decommission  After approval, runs `terraform state rm` on that list and verifies
 #                 nothing still references the repo.
 #
-# Run this WHILE the repo's repos/<repo>.yaml is still present, then delete the YAML
-# afterward via the normal config PR — with the resources already gone from state, that
-# apply is a no-op. (Deleting the YAML first would instead make apply try to destroy it.)
+# Run this while repos/<repo>.yaml is still present, then delete the YAML afterward via
+# the normal config PR — the resources are already out of state, so that apply is a no-op.
 # WORKSPACE must be a repository-level Actions variable: the discover job and the
 # concurrency group run outside the environment and can't read environment-scoped vars.
 
@@ -72,15 +71,13 @@ jobs:
             echo "::error::'$REPO' is not a valid repository name."
             exit 1
           fi
-          # No repos/ dir means this wasn't called from the config repo — refuse rather
-          # than let the check below pass vacuously.
+          # Guard against running outside the config repo (which has a repos/ dir).
           if [ ! -d config-repo/repos ]; then
             echo "::error::checked-out repository has no repos/ directory — this workflow must be called from the config repository."
             exit 1
           fi
-          # Decommission runs WHILE the config is still present (the YAML is deleted
-          # afterward); an already-deleted config means the order was wrong. Terraform
-          # reads both repos/ and importer_tmp_dir/, so accept the config in either.
+          # Decommission runs while the config is still present (deleted afterward), so
+          # require it. Terraform reads repos/ and importer_tmp_dir/, so accept either.
           if [ -f "config-repo/repos/$REPO.yaml" ] || [ -f "config-repo/repos/$REPO.yml" ] \
              || [ -f "config-repo/importer_tmp_dir/$REPO.yaml" ] || [ -f "config-repo/importer_tmp_dir/$REPO.yml" ]; then
             echo "Config for '$REPO' is present — proceeding."
