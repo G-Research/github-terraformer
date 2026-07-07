@@ -79,18 +79,15 @@ jobs:
             exit 1
           fi
           # Decommission runs WHILE the config is still present (the YAML is deleted
-          # afterward). Require it — running against an already-deleted config means the
-          # order was wrong. Terraform reads both repos/ and importer_tmp_dir/, so accept
-          # the config in either.
-          for f in "config-repo/repos/$REPO.yaml" "config-repo/repos/$REPO.yml" \
-                   "config-repo/importer_tmp_dir/$REPO.yaml" "config-repo/importer_tmp_dir/$REPO.yml"; do
-            if [ -f "$f" ]; then
-              echo "Found config for '$REPO' at ${f#config-repo/} — proceeding."
-              exit 0
-            fi
-          done
-          echo "::error::no config found for '$REPO' under repos/ or importer_tmp_dir/ — run decommission while the config is still present, then delete the YAML."
-          exit 1
+          # afterward); an already-deleted config means the order was wrong. Terraform
+          # reads both repos/ and importer_tmp_dir/, so accept the config in either.
+          if [ -f "config-repo/repos/$REPO.yaml" ] || [ -f "config-repo/repos/$REPO.yml" ] \
+             || [ -f "config-repo/importer_tmp_dir/$REPO.yaml" ] || [ -f "config-repo/importer_tmp_dir/$REPO.yml" ]; then
+            echo "Config for '$REPO' is present — proceeding."
+          else
+            echo "::error::no config found for '$REPO' under repos/ or importer_tmp_dir/ — run decommission while the config is still present, then delete the YAML."
+            exit 1
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
