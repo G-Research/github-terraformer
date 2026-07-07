@@ -8,7 +8,9 @@ name: Decommission repository
 #   decommission  After approval, runs `terraform state rm` on that list and verifies
 #                 nothing still references the repo.
 #
-# Remove the repo's repos/<repo>.yaml via the normal config PR as part of the same change.
+# Run this WHILE the repo's repos/<repo>.yaml is still present, then delete the YAML
+# afterward via the normal config PR — with the resources already gone from state, that
+# apply is a no-op. (Deleting the YAML first would instead make apply try to destroy it.)
 # WORKSPACE must be a repository-level Actions variable: the discover job and the
 # concurrency group run outside the environment and can't read environment-scoped vars.
 
@@ -61,7 +63,7 @@ jobs:
           path: config-repo
           persist-credentials: false
 
-      - name: Ensure the repository's config has been removed
+      - name: Ensure the repository is still configured
         env:
           REPO: ${{ inputs.repo }}
         run: |
@@ -76,15 +78,19 @@ jobs:
             echo "::error::checked-out repository has no repos/ directory — this workflow must be called from the config repository."
             exit 1
           fi
-          # Terraform reads both repos/ and importer_tmp_dir/, so check both.
+          # Decommission runs WHILE the config is still present (the YAML is deleted
+          # afterward). Require it — running against an already-deleted config means the
+          # order was wrong. Terraform reads both repos/ and importer_tmp_dir/, so accept
+          # the config in either.
           for f in "config-repo/repos/$REPO.yaml" "config-repo/repos/$REPO.yml" \
                    "config-repo/importer_tmp_dir/$REPO.yaml" "config-repo/importer_tmp_dir/$REPO.yml"; do
             if [ -f "$f" ]; then
-              echo "::error::config repo still contains ${f#config-repo/} — merge the deletion PR before decommissioning."
-              exit 1
+              echo "Found config for '$REPO' at ${f#config-repo/} — proceeding."
+              exit 0
             fi
           done
-          echo "Confirmed '$REPO' has no config under repos/ or importer_tmp_dir/."
+          echo "::error::no config found for '$REPO' under repos/ or importer_tmp_dir/ — run decommission while the config is still present, then delete the YAML."
+          exit 1
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
