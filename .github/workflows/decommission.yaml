@@ -91,14 +91,15 @@ jobs:
         with:
           cli_config_credentials_token: ${{ secrets.tfc_token }}
 
+      - name: Link backend file
+        uses: ./.github/actions/link-backend
+
       - name: Terraform init
         working-directory: feature/github-repo-provisioning
         env:
           TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
           TF_WORKSPACE: ${{ vars.WORKSPACE }}
-        run: |
-          ln -sf backend.tf.hcp backend.tf
-          terraform init -input=false
+        run: terraform init -input=false
 
       - name: Find state addresses owned by the repository
         id: find
@@ -172,11 +173,12 @@ jobs:
         with:
           cli_config_credentials_token: ${{ secrets.tfc_token }}
 
+      - name: Link backend file
+        uses: ./.github/actions/link-backend
+
       - name: Terraform init
         working-directory: feature/github-repo-provisioning
-        run: |
-          ln -sf backend.tf.hcp backend.tf
-          terraform init -input=false
+        run: terraform init -input=false
 
       - name: Remove resources from state
         working-directory: feature/github-repo-provisioning
