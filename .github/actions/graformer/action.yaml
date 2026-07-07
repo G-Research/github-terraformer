@@ -36,17 +36,9 @@ runs:
         cli_config_credentials_token: ${{ inputs.tfc-token }}
 
     - name: Link backend file
-      id: link
-      shell: bash
-      working-directory: feature/github-repo-provisioning
-      env:
-        BACKEND: ${{ env.BACKEND }}
-      run: |
-        if [[ -n "${BACKEND}" ]]; then
-          ln -sf "backend.tf.${BACKEND}" backend.tf
-        else
-          ln -sf backend.tf.hcp backend.tf
-        fi
+      uses: ./.github/actions/link-backend
+      with:
+        backend: ${{ env.BACKEND }}
 
     - name: Terraform fmt
       id: fmt
