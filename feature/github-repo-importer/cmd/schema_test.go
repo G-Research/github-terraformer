@@ -37,5 +37,5 @@ func TestBuildRepositoryConfigSchema(t *testing.T) {
 	schema := BuildRepositoryConfigSchema()
 
 	assert.Equal(t, "Repository Configuration", schema.Title)
-	assert.True(t, strings.Contains(string(schema.ID), schemaOutFile), "schema $id should point at %s, got %s", schemaOutFile, schema.ID)
+	assert.True(t, strings.Contains(string(schema.ID), repositorySchemaOutFile), "schema $id should point at %s, got %s", repositorySchemaOutFile, schema.ID)
 }

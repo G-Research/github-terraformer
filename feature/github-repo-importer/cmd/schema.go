@@ -14,9 +14,11 @@ import (
 )
 
 const (
-	schemaOutDir       = ".schemas"
-	schemaOutFile      = "repository-config.schema.json"
-	teamsSchemaOutFile = "teams-config.schema.json"
+	schemaOutDir            = ".schemas"
+	repositorySchemaOutFile = "repository-config.schema.json"
+	teamsSchemaOutFile      = "teams-config.schema.json"
+
+	schemaIDURLFormat = "https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s"
 )
 
 var schemaCmd = &cobra.Command{
@@ -32,7 +34,7 @@ var schemaCmd = &cobra.Command{
 			outFile string
 			marshal func() ([]byte, error)
 		}{
-			{schemaOutFile, MarshalRepositoryConfigSchema},
+			{repositorySchemaOutFile, MarshalRepositoryConfigSchema},
 			{teamsSchemaOutFile, MarshalTeamsConfigSchema},
 		}
 
@@ -70,7 +72,7 @@ func BuildRepositoryConfigSchema() *jsonschema.Schema {
 
 		schema := reflector.Reflect(&RepositoryWithExpansionConfig{})
 		schema.Title = "Repository Configuration"
-		schema.ID = jsonschema.ID(fmt.Sprintf("https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s", schemaOutDir, schemaOutFile))
+		schema.ID = jsonschema.ID(fmt.Sprintf(schemaIDURLFormat, schemaOutDir, repositorySchemaOutFile))
 
 		squashIf := &jsonschema.Schema{
 			Properties: orderedmap.New[string, *jsonschema.Schema](),
@@ -162,7 +164,7 @@ func BuildTeamsConfigSchema() *jsonschema.Schema {
 
 	schema := reflector.Reflect(&github.TeamsConfig{})
 	schema.Title = "Teams Configuration"
-	schema.ID = jsonschema.ID(fmt.Sprintf("https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s", schemaOutDir, teamsSchemaOutFile))
+	schema.ID = jsonschema.ID(fmt.Sprintf(schemaIDURLFormat, schemaOutDir, teamsSchemaOutFile))
 
 	return schema
 }
