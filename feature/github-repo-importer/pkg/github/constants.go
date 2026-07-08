@@ -22,6 +22,9 @@ const (
 	VisibilityPrivate = "private"
 	VisibilityPublic  = "public"
 
+	TeamVisibilityVisible = "visible"
+	TeamVisibilitySecret  = "secret"
+
 	// Permission levels
 	PermissionRead     = "read"
 	PermissionWrite    = "write"

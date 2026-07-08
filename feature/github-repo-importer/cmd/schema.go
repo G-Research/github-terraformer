@@ -9,38 +9,52 @@ import (
 	"github.com/invopop/jsonschema"
 	"github.com/spf13/cobra"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
+
+	"github.com/gr-oss-devops/github-repo-importer/pkg/github"
 )
 
 const (
-	schemaOutDir  = ".schemas"
-	schemaOutFile = "repository-config.schema.json"
+	schemaOutDir            = ".schemas"
+	repositorySchemaOutFile = "repository-config.schema.json"
+	teamsSchemaOutFile      = "teams-config.schema.json"
+
+	schemaIDURLFormat = "https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s"
 )
 
 var schemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "Generate JSON Schema for the repository config",
+	Short: "Generate JSON Schema for the repository and teams configs",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projectRoot := "../../"
 		if err := os.MkdirAll(fmt.Sprintf("%s/%s", projectRoot, schemaOutDir), 0o755); err != nil {
 			return fmt.Errorf("create %s: %w", schemaOutDir, err)
 		}
 
-		outPath := filepath.Join(projectRoot, schemaOutDir, schemaOutFile)
-
-		data, err := MarshalRepositoryConfigSchema()
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(outPath, data, 0o644); err != nil {
-			return fmt.Errorf("write schema file: %w", err)
+		schemas := []struct {
+			outFile string
+			marshal func() ([]byte, error)
+		}{
+			{repositorySchemaOutFile, MarshalRepositoryConfigSchema},
+			{teamsSchemaOutFile, MarshalTeamsConfigSchema},
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "Schema written to %s\n", outPath)
+		for _, s := range schemas {
+			outPath := filepath.Join(projectRoot, schemaOutDir, s.outFile)
+
+			data, err := s.marshal()
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(outPath, data, 0o644); err != nil {
+				return fmt.Errorf("write schema file: %w", err)
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Schema written to %s\n", outPath)
+		}
 		return nil
 	},
 }
 
-// MarshalRepositoryConfigSchema returns the JSON-encoded repository config schema.
 func MarshalRepositoryConfigSchema() ([]byte, error) {
 	data, err := json.MarshalIndent(BuildRepositoryConfigSchema(), "", "  ")
 	if err != nil {
@@ -49,10 +63,6 @@ func MarshalRepositoryConfigSchema() ([]byte, error) {
 	return data, nil
 }
 
-// BuildRepositoryConfigSchema reflects the JSON schema for the repository
-// configuration from the Go structs and applies the manual constraints that
-// cannot be expressed through struct tags. It is the single source of truth
-// shared by the `schema` and `validate` commands.
 func BuildRepositoryConfigSchema() *jsonschema.Schema {
 	{
 		reflector := &jsonschema.Reflector{
@@ -62,7 +72,7 @@ func BuildRepositoryConfigSchema() *jsonschema.Schema {
 
 		schema := reflector.Reflect(&RepositoryWithExpansionConfig{})
 		schema.Title = "Repository Configuration"
-		schema.ID = jsonschema.ID(fmt.Sprintf("https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s", schemaOutDir, schemaOutFile))
+		schema.ID = jsonschema.ID(fmt.Sprintf(schemaIDURLFormat, schemaOutDir, repositorySchemaOutFile))
 
 		squashIf := &jsonschema.Schema{
 			Properties: orderedmap.New[string, *jsonschema.Schema](),
@@ -136,6 +146,27 @@ func BuildRepositoryConfigSchema() *jsonschema.Schema {
 
 		return schema
 	}
+}
+
+func MarshalTeamsConfigSchema() ([]byte, error) {
+	data, err := json.MarshalIndent(BuildTeamsConfigSchema(), "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal schema: %w", err)
+	}
+	return data, nil
+}
+
+func BuildTeamsConfigSchema() *jsonschema.Schema {
+	reflector := &jsonschema.Reflector{
+		AllowAdditionalProperties: false,
+		FieldNameTag:              "yaml",
+	}
+
+	schema := reflector.Reflect(&github.TeamsConfig{})
+	schema.Title = "Teams Configuration"
+	schema.ID = jsonschema.ID(fmt.Sprintf(schemaIDURLFormat, schemaOutDir, teamsSchemaOutFile))
+
+	return schema
 }
 
 func init() {

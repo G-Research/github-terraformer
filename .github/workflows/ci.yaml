@@ -24,8 +24,8 @@ jobs:
       - name: Test
         run: go test ./...
 
-      - name: Check generated schema is up to date
+      - name: Check generated schemas are up to date
         run: |
           go run . schema
-          git diff --exit-code ../../.schemas/repository-config.schema.json \
-            || { echo "::error::.schemas/repository-config.schema.json is stale. Run 'go run . schema' in feature/github-repo-importer and commit the result."; exit 1; }
+          git diff --exit-code ../../.schemas/repository-config.schema.json ../../.schemas/teams-config.schema.json \
+            || { echo "::error::Generated schemas in .schemas/ are stale. Run 'go run . schema' in feature/github-repo-importer and commit the result."; exit 1; }
