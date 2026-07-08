@@ -2,7 +2,7 @@ name: "Link Terraform backend file"
 description: "Symlinks the selected backend.tf.<backend> to backend.tf before terraform init"
 inputs:
   backend:
-    description: "Backend variant to activate (matches backend.tf.<backend>)"
+    description: "Backend variant to activate (matches backend.tf.<backend>); empty selects hcp"
     required: false
     default: "hcp"
 runs:
@@ -13,4 +13,4 @@ runs:
       working-directory: feature/github-repo-provisioning
       env:
         BACKEND: ${{ inputs.backend }}
-      run: ln -sf "backend.tf.${BACKEND}" backend.tf
+      run: ln -sf "backend.tf.${BACKEND:-hcp}" backend.tf
