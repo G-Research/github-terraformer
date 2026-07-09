@@ -68,18 +68,8 @@ func nilIfEmpty(s *string) *string {
 	return s
 }
 
-// ImportRepo imports a single repository with feature flags from the provided config
 func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 	fmt.Println("Importing repository: ", repoName)
-
-	// Log enabled features
-	if cfg != nil && cfg.Features != nil {
-		for featureName, enabled := range cfg.Features {
-			if enabled {
-				fmt.Printf("Feature enabled: %s\n", featureName)
-			}
-		}
-	}
 
 	if !isValidRepoFormat(repoName) {
 		return nil, errors.New("invalid repository format. Use owner/repo")
@@ -122,24 +112,8 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		fmt.Printf("failed to write pages.json: %v\n", err)
 	}
 
-	// =========================================================================
-	// FEATURE: GitHub Environments
-	// =========================================================================
-	// Feature flag: feature_github_environment (default: DISABLED - opt-in feature)
-	// Set feature_github_environment: true in import-config.yaml to enable environment import.
-	//
-	// When enabled, environments are imported from GitHub and managed by Terraform.
 	var allEnvironments []*github.Environment
-
-	// Check if feature is enabled (defaults to false - opt-in feature)
-	enableEnvironments := false
-	if cfg != nil && cfg.Features != nil {
-		if enabled, exists := cfg.Features[FeatureGithubEnvironment]; exists {
-			enableEnvironments = enabled
-		}
-	}
-
-	if enableEnvironments {
+	if cfg != nil && cfg.FeatureGithubEnvironments != nil && *cfg.FeatureGithubEnvironments {
 		envOpts := &github.EnvironmentListOptions{
 			ListOptions: github.ListOptions{PerPage: 100},
 		}
@@ -147,33 +121,25 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 			environments, res, err := v3client.Repositories.ListEnvironments(context.Background(), repoNameSplit[0], repoNameSplit[1], envOpts)
 			if err != nil {
 				if res != nil && res.StatusCode == http.StatusNotFound {
-					fmt.Printf("environments not found (this is normal for repositories without environments): %v\n", err)
-				} else {
-					fmt.Printf("failed to get environments: %v\n", err)
+					break
 				}
-				break
+				return nil, fmt.Errorf("failed to list environments for %q: %w", repoName, err)
 			}
 
 			if err := dumpManager.WriteJSONFile("environments.json", environments); err != nil {
 				fmt.Printf("failed to write environments.json: %v\n", err)
 			}
 
-			// ListEnvironments returns basic info - we need to fetch full details for each environment
-			// to get reviewers, protection rules, and other detailed configuration
-			if environments != nil && environments.Environments != nil {
+			if environments != nil {
 				for _, env := range environments.Environments {
-					if env.Name != nil {
-						// Fetch full environment details including reviewers
-						fullEnv, _, err := v3client.Repositories.GetEnvironment(context.Background(), repoNameSplit[0], repoNameSplit[1], *env.Name)
-						if err != nil {
-							fmt.Printf("Warning: failed to get full details for environment %s: %v\n", *env.Name, err)
-							// Use basic info if detailed fetch fails
-							allEnvironments = append(allEnvironments, env)
-						} else {
-							// Use full environment data with all details
-							allEnvironments = append(allEnvironments, fullEnv)
-						}
+					if env.Name == nil {
+						continue
 					}
+					fullEnv, _, err := v3client.Repositories.GetEnvironment(context.Background(), repoNameSplit[0], repoNameSplit[1], *env.Name)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get environment %q for %q: %w", *env.Name, repoName, err)
+					}
+					allEnvironments = append(allEnvironments, fullEnv)
 				}
 			}
 
@@ -254,6 +220,11 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		fmt.Printf("failed to fetch custom properties: %v\n", err)
 	}
 
+	resolvedEnvironments, err := resolveEnvironments(allEnvironments, v3client, repoNameSplit[0], repoNameSplit[1])
+	if err != nil {
+		return nil, err
+	}
+
 	return &Repository{
 		Name:                       repo.GetName(),
 		Owner:                      repo.GetOwner().GetLogin(),
@@ -297,7 +268,7 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		Rulesets:                   resolvedRulesets,
 		VulnerabilityAlertsEnabled: &vulnerabilityAlertsEnabled,
 		BranchProtectionsV4:        resolveBranchProtectionsFromGraphQL(&branchProtectionRulesGraphQLQuery),
-		Environments:               resolveEnvironments(allEnvironments, v3client, repoNameSplit[0], repoNameSplit[1]),
+		Environments:               resolvedEnvironments,
 		CustomProperties:           customProperties,
 	}, nil
 }
@@ -779,52 +750,46 @@ func resolveRepositoryTemplate(githubRepository *github.Repository) *RepositoryT
 	return nil
 }
 
-// fetchDeploymentPolicies fetches deployment branch policies for a given environment
-func fetchDeploymentPolicies(client *github.Client, owner, repo, envName string) ([]string, []string) {
-
+func fetchDeploymentPolicies(client *github.Client, owner, repo, envName string) ([]string, []string, error) {
 	var branchPatterns []string
 	var tagPatterns []string
 
-	// List deployment branch policies
-	// GitHub API endpoint: GET /repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies
 	opts := &github.ListOptions{PerPage: 100}
 	for {
-		// Note: The go-github library may not have direct support for this endpoint yet
-		// We'll use the generic API call method
 		req, err := client.NewRequest("GET", fmt.Sprintf("repos/%s/%s/environments/%s/deployment-branch-policies", owner, repo, envName), nil)
 		if err != nil {
-			fmt.Printf("Warning: Failed to create request for deployment policies: %v\n", err)
-			break
+			return nil, nil, fmt.Errorf("failed to build deployment policies request for environment %q: %w", envName, err)
 		}
 
 		type DeploymentPolicy struct {
-			ID            int64  `json:"id"`
-			NodeID        string `json:"node_id"`
-			Name          string `json:"name"`
-			Type          string `json:"type"` // "branch" or "tag"
+			ID     int64  `json:"id"`
+			NodeID string `json:"node_id"`
+			Name   string `json:"name"`
+			Type   string `json:"type"`
 		}
 
 		type DeploymentPoliciesResponse struct {
-			TotalCount int                 `json:"total_count"`
-			Policies   []DeploymentPolicy  `json:"branch_policies"`
+			TotalCount int                `json:"total_count"`
+			Policies   []DeploymentPolicy `json:"branch_policies"`
 		}
 
 		var result DeploymentPoliciesResponse
 		resp, err := client.Do(context.Background(), req, &result)
 		if err != nil {
-			// If 404, it might mean no custom policies are configured
-			if resp != nil && resp.StatusCode == 404 {
-				return nil, nil
+			if resp != nil && resp.StatusCode == http.StatusNotFound {
+				return nil, nil, nil
 			}
-			fmt.Printf("Warning: Failed to fetch deployment policies for environment %s: %v\n", envName, err)
-			break
+			return nil, nil, fmt.Errorf("failed to fetch deployment policies for environment %q: %w", envName, err)
 		}
 
 		for _, policy := range result.Policies {
-			if policy.Type == "branch" {
+			switch policy.Type {
+			case "branch":
 				branchPatterns = append(branchPatterns, policy.Name)
-			} else if policy.Type == "tag" {
+			case "tag":
 				tagPatterns = append(tagPatterns, policy.Name)
+			default:
+				return nil, nil, fmt.Errorf("unknown deployment policy type %q for environment %q", policy.Type, envName)
 			}
 		}
 
@@ -834,159 +799,76 @@ func fetchDeploymentPolicies(client *github.Client, owner, repo, envName string)
 		opts.Page = resp.NextPage
 	}
 
-	return branchPatterns, tagPatterns
+	return branchPatterns, tagPatterns, nil
 }
 
-func resolveEnvironments(envs []*github.Environment, client *github.Client, owner, repo string) []Environment {
+func resolveEnvironments(envs []*github.Environment, client *github.Client, owner, repo string) ([]Environment, error) {
 	if len(envs) == 0 {
-		return nil
-	}
-
-	// Get organization info to obtain org ID (needed for team lookups)
-	org, _, err := client.Organizations.Get(context.Background(), owner)
-	if err != nil {
-		fmt.Printf("Warning: failed to get organization info: %v\n", err)
-		return nil
+		return nil, nil
 	}
 
 	var environments []Environment
 	for _, env := range envs {
 		environment := Environment{
 			Environment:     env.GetName(),
-			// WaitTimer will be extracted from ProtectionRules below
 			CanAdminsBypass: env.CanAdminsBypass,
 		}
 
-		// Extract PreventSelfReview, WaitTimer, and Reviewers from ProtectionRules
-		// All are nested inside ProtectionRules array in the GitHub API
-		// Only set if actually found - don't assume defaults when importing
-		if env.ProtectionRules != nil && len(env.ProtectionRules) > 0 {
-			// We need to extract reviewers from ProtectionRules, not from env.Reviewers
-			protectionReviewers := &EnvironmentReviewers{}
-
+		if len(env.ProtectionRules) > 0 {
+			reviewers := &EnvironmentReviewers{}
 			for _, rule := range env.ProtectionRules {
-				// Check for wait_timer rule type
-				if rule.Type != nil && *rule.Type == "wait_timer" {
-					if rule.WaitTimer != nil {
-						environment.WaitTimer = rule.WaitTimer
-					}
+				if rule.Type != nil && *rule.Type == "wait_timer" && rule.WaitTimer != nil {
+					environment.WaitTimer = rule.WaitTimer
 				}
-
 				if rule.PreventSelfReview != nil {
 					environment.PreventSelfReview = rule.PreventSelfReview
 				}
-
-				// Check if this protection rule has reviewers
-				if rule.Reviewers != nil && len(rule.Reviewers) > 0 {
-					// Extract reviewers from this protection rule
-					// RequiredReviewer has Reviewer field (interface{}) that contains the actual user/team data
-					for _, reqReviewer := range rule.Reviewers {
-						if reqReviewer.Type == nil {
-							continue
-						}
-
-						// The Reviewer field is an interface{} - try different type casts
-						if reqReviewer.Reviewer != nil {
-							switch *reqReviewer.Type {
-							case "Team":
-								// Try casting to *github.Team
-								if team, ok := reqReviewer.Reviewer.(*github.Team); ok {
-									if team.Slug != nil {
-										protectionReviewers.Teams = append(protectionReviewers.Teams, *team.Slug)
-									} else if team.Name != nil {
-										protectionReviewers.Teams = append(protectionReviewers.Teams, *team.Name)
-									}
-								}
-							case "User":
-								// Try casting to *github.User
-								if user, ok := reqReviewer.Reviewer.(*github.User); ok {
-									if user.Login != nil {
-										protectionReviewers.Users = append(protectionReviewers.Users, *user.Login)
-									}
-								} else {
-									// Fallback: try map[string]interface{} for older API versions
-									if reviewerData, ok := reqReviewer.Reviewer.(map[string]interface{}); ok {
-										if login, ok := reviewerData["login"].(string); ok {
-											protectionReviewers.Users = append(protectionReviewers.Users, login)
-										}
-									}
-								}
-							}
-						}
+				for _, reqReviewer := range rule.Reviewers {
+					if reqReviewer.Type == nil || reqReviewer.Reviewer == nil {
+						continue
 					}
-				}
-			}
-
-			// Set reviewers if we found any in ProtectionRules
-			if len(protectionReviewers.Teams) > 0 || len(protectionReviewers.Users) > 0 {
-				environment.Reviewers = protectionReviewers
-			}
-		}
-
-		// Handle reviewers at top level (fallback if not in ProtectionRules)
-		// API may return array of EnvReviewers with Type and ID
-		// We resolve IDs to human-readable names (usernames and team slugs)
-		// Note: This is usually empty as reviewers are typically in ProtectionRules
-		if env.Reviewers != nil && len(env.Reviewers) > 0 && environment.Reviewers == nil {
-			reviewers := &EnvironmentReviewers{}
-
-			// Separate reviewers by type and resolve IDs to names
-			for _, reviewer := range env.Reviewers {
-				if reviewer.Type != nil && reviewer.ID != nil {
-					switch *reviewer.Type {
+					switch *reqReviewer.Type {
 					case "Team":
-						// Resolve team ID to team slug
-						team, _, err := client.Teams.GetTeamByID(context.Background(), org.GetID(), *reviewer.ID)
-						if err != nil {
-							fmt.Printf("Warning: failed to resolve team ID %d: %v\n", *reviewer.ID, err)
-							continue
+						team, ok := reqReviewer.Reviewer.(*github.Team)
+						if !ok {
+							return nil, fmt.Errorf("environment %q: reviewer typed Team but payload was %T", env.GetName(), reqReviewer.Reviewer)
 						}
 						if team.Slug != nil {
 							reviewers.Teams = append(reviewers.Teams, *team.Slug)
+						} else if team.Name != nil {
+							reviewers.Teams = append(reviewers.Teams, *team.Name)
 						}
 					case "User":
-						// Resolve user ID to username
-						user, _, err := client.Users.GetByID(context.Background(), *reviewer.ID)
-						if err != nil {
-							fmt.Printf("Warning: failed to resolve user ID %d: %v\n", *reviewer.ID, err)
-							continue
+						user, ok := reqReviewer.Reviewer.(*github.User)
+						if !ok {
+							return nil, fmt.Errorf("environment %q: reviewer typed User but payload was %T", env.GetName(), reqReviewer.Reviewer)
 						}
 						if user.Login != nil {
 							reviewers.Users = append(reviewers.Users, *user.Login)
 						}
+					default:
+						return nil, fmt.Errorf("environment %q: unknown reviewer type %q", env.GetName(), *reqReviewer.Type)
 					}
 				}
 			}
-
 			if len(reviewers.Teams) > 0 || len(reviewers.Users) > 0 {
 				environment.Reviewers = reviewers
 			}
 		}
 
-		// Handle deployment policy
 		if env.DeploymentBranchPolicy != nil {
 			deploymentPolicy := &DeploymentPolicy{}
-
-			// Determine policy type based on protected_branches and custom_branch_policies
 			if env.DeploymentBranchPolicy.ProtectedBranches != nil && *env.DeploymentBranchPolicy.ProtectedBranches {
-				// Protected branches only
 				deploymentPolicy.PolicyType = "protected_branches"
 			} else if env.DeploymentBranchPolicy.CustomBranchPolicies != nil && *env.DeploymentBranchPolicy.CustomBranchPolicies {
-				// Custom branch/tag patterns
 				deploymentPolicy.PolicyType = "selected_branches_and_tags"
-
-				// Fetch deployment branch policies from GitHub API
-				branchPatterns, tagPatterns := fetchDeploymentPolicies(client, owner, repo, env.GetName())
-
-				if len(branchPatterns) > 0 {
-					deploymentPolicy.BranchPatterns = branchPatterns
+				branchPatterns, tagPatterns, err := fetchDeploymentPolicies(client, owner, repo, env.GetName())
+				if err != nil {
+					return nil, err
 				}
-				if len(tagPatterns) > 0 {
-					deploymentPolicy.TagPatterns = tagPatterns
-				}
+				deploymentPolicy.BranchPatterns = branchPatterns
+				deploymentPolicy.TagPatterns = tagPatterns
 			}
-
-			// Only set deployment policy if we have a valid policy type
 			if deploymentPolicy.PolicyType != "" {
 				environment.DeploymentPolicy = deploymentPolicy
 			}
@@ -995,7 +877,7 @@ func resolveEnvironments(envs []*github.Environment, client *github.Client, owne
 		environments = append(environments, environment)
 	}
 
-	return environments
+	return environments, nil
 }
 
 func resolveVisibility(private bool) string {

@@ -59,4 +59,8 @@ jobs:
         env:
           TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
           TF_WORKSPACE: ${{ vars.WORKSPACE }}
-        run: terraform apply -no-color -input=false -auto-approve
+        run: terraform apply -no-color -input=false ${{ steps.graformer.outputs.plan-file }}
+
+      - name: Clean up plan file
+        if: always() && steps.graformer.outputs.plan-file != ''
+        run: rm -f "${{ steps.graformer.outputs.plan-file }}"
