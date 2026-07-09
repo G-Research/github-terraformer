@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/.schemas/teams-config.schema.json",
+  "$ref": "#/$defs/TeamsConfig",
+  "$defs": {
+    "Team": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "visible",
+            "secret"
+          ]
+        },
+        "notifications": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "TeamsConfig": {
+      "properties": {
+        "teams": {
+          "items": {
+            "$ref": "#/$defs/Team"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "title": "Teams Configuration"
+}

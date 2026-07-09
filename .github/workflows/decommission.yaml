@@ -1,0 +1,235 @@
+name: Decommission repository
+
+# Removes a repository that has left the org (transferred out or deleted) from Terraform
+# state without destroying it. Deleting its YAML alone would make Terraform plan a destroy
+# of a repo the org no longer owns, breaking every repository's plan.
+#
+#   discover      Lists every state address the repo owns and hands it to the next job.
+#   decommission  After approval, runs `terraform state rm` on that list and verifies
+#                 nothing still references the repo.
+#
+# Run this while repos/<repo>.yaml is still present, then delete the YAML afterward via
+# the normal config PR — the resources are already out of state, so that apply is a no-op.
+# WORKSPACE must be a repository-level Actions variable: the discover job and the
+# concurrency group run outside the environment and can't read environment-scoped vars.
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        description: "Repository to decommission (matches repos/<repo>.yaml)"
+        type: string
+        required: true
+      gcss_ref:
+        description: "GCSS ref to checkout"
+        type: string
+        required: false
+        default: "main"
+      tfc_org:
+        description: "Terraform Cloud organization"
+        type: string
+        required: true
+    secrets:
+      tfc_token:
+        description: "Terraform Cloud API token"
+        required: true
+
+# Serialize runs per workspace; queue rather than cancel so a state op isn't interrupted.
+concurrency:
+  group: decommission-${{ vars.WORKSPACE }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover state resources
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      addresses: ${{ steps.find.outputs.addresses }}
+      count: ${{ steps.find.outputs.count }}
+    steps:
+      - name: Checkout GCSS
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: Checkout config repo
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          path: config-repo
+          persist-credentials: false
+
+      - name: Ensure the repository is still configured
+        env:
+          REPO: ${{ inputs.repo }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$REPO" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::'$REPO' is not a valid repository name."
+            exit 1
+          fi
+          # Guard against running outside the config repo (which has a repos/ dir).
+          if [ ! -d config-repo/repos ]; then
+            echo "::error::checked-out repository has no repos/ directory — this workflow must be called from the config repository."
+            exit 1
+          fi
+          # Decommission runs while the config is still present (deleted afterward), so
+          # require it. Terraform reads repos/ and importer_tmp_dir/, so accept either.
+          if [ -f "config-repo/repos/$REPO.yaml" ] || [ -f "config-repo/repos/$REPO.yml" ] \
+             || [ -f "config-repo/importer_tmp_dir/$REPO.yaml" ] || [ -f "config-repo/importer_tmp_dir/$REPO.yml" ]; then
+            echo "Config for '$REPO' is present — proceeding."
+          else
+            echo "::error::no config found for '$REPO' under repos/ or importer_tmp_dir/ — run decommission while the config is still present, then delete the YAML."
+            exit 1
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          cli_config_credentials_token: ${{ secrets.tfc_token }}
+
+      - name: Link backend file
+        uses: ./.github/actions/link-backend
+
+      - name: Terraform init
+        working-directory: feature/github-repo-provisioning
+        env:
+          TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
+          TF_WORKSPACE: ${{ vars.WORKSPACE }}
+        run: terraform init -input=false
+
+      - name: Find state addresses owned by the repository
+        id: find
+        working-directory: feature/github-repo-provisioning
+        env:
+          TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
+          TF_WORKSPACE: ${{ vars.WORKSPACE }}
+          REPO: ${{ inputs.repo }}
+        run: |
+          set -euo pipefail
+          terraform show -json > state.json
+
+          {
+            if terraform state list | grep -qF -- "module.repository[\"$REPO\"]"; then
+              echo "module.repository[\"$REPO\"]"
+            fi
+            # Match root-level resources by their repository attribute so hashed ruleset
+            # keys are never missed; ? // [] tolerates empty or absent state.
+            jq -r --arg repo "$REPO" '
+              (.values.root_module.resources? // [])[]
+              | select(.mode == "managed")
+              | select(.values.repository == $repo)
+              | .address
+            ' state.json
+          } > addresses.txt
+
+          count=$(grep -c . addresses.txt || true)
+          echo "Found $count address(es) for '$REPO':"
+          cat addresses.txt
+
+          {
+            echo "### Decommission plan for \`$REPO\`"
+            echo "The \`decommission\` job will run \`terraform state rm\` on:"
+            echo '```'
+            cat addresses.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # base64 keeps the multi-line list in a single job output.
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "addresses=$(base64 -w0 addresses.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Nothing to decommission
+        if: steps.find.outputs.count == '0'
+        env:
+          REPO: ${{ inputs.repo }}
+        run: echo "::notice::No state resources found for '$REPO'. Nothing to do."
+
+  decommission:
+    name: Remove resources from state
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ubuntu-latest
+    # Approval gate: required reviewers on this environment.
+    environment: decommission
+    permissions:
+      contents: read
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
+      TF_WORKSPACE: ${{ vars.WORKSPACE }}
+    steps:
+      - name: Checkout GCSS
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: G-Research/github-terraformer
+          ref: ${{ inputs.gcss_ref }}
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          cli_config_credentials_token: ${{ secrets.tfc_token }}
+
+      - name: Link backend file
+        uses: ./.github/actions/link-backend
+
+      - name: Terraform init
+        working-directory: feature/github-repo-provisioning
+        run: terraform init -input=false
+
+      - name: Remove resources from state
+        working-directory: feature/github-repo-provisioning
+        env:
+          ADDRESSES_B64: ${{ needs.discover.outputs.addresses }}
+        run: |
+          set -euo pipefail
+          base64 -d <<< "$ADDRESSES_B64" > addresses.txt
+
+          # Skip addresses already gone (safe re-run), then remove all in one state rm.
+          terraform state list > current.txt
+          to_remove=()
+          while IFS= read -r addr; do
+            [ -z "$addr" ] && continue
+            if grep -qF -- "$addr" current.txt; then
+              to_remove+=("$addr")
+            else
+              echo "already absent, skipping: $addr"
+            fi
+          done < addresses.txt
+
+          if [ "${#to_remove[@]}" -eq 0 ]; then
+            echo "All addresses already absent from state. Nothing to remove."
+            exit 0
+          fi
+          # state rm takes the workspace lock itself; no separate lock step needed.
+          terraform state rm "${to_remove[@]}"
+
+      # The approved list predates the approval wait; fail if anything still references the
+      # repo so a re-run re-discovers and re-approves it.
+      - name: Verify nothing in state still references the repository
+        working-directory: feature/github-repo-provisioning
+        env:
+          REPO: ${{ inputs.repo }}
+        run: |
+          set -euo pipefail
+          terraform show -json > state.json
+          leftovers=$(jq -r --arg repo "$REPO" '
+            [
+              ((.values.root_module.resources? // [])[]
+                | select(.mode == "managed")
+                | select(.values.repository == $repo)
+                | .address),
+              ((.values.root_module.child_modules? // [])[]
+                | select(.address == "module.repository[\"" + $repo + "\"]")
+                | .address)
+            ] | .[]
+          ' state.json)
+          if [ -n "$leftovers" ]; then
+            echo "::error::state still references '$REPO' after removal — re-run the workflow:"
+            echo "$leftovers"
+            exit 1
+          fi
+          echo "State no longer references '$REPO'."

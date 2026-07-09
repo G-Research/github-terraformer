@@ -32,8 +32,9 @@ You must have:
 | Administration    | Read & Write        |
 | Checks            | Read & Write        |
 | Contents          | Read & Write        |
+| Custom Properties | Read & Write        |
 | Dependabot Alerts | Read & Write        |
-| Metadata          | Read-only |
+| Metadata          | Read-only           |
 | Pages             | Read & Write        |
 | Pull Requests     | Read & Write        |
 

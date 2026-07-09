@@ -11,10 +11,10 @@ jobs:
         working-directory: feature/github-repo-importer
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: feature/github-repo-importer/go.mod
 
@@ -23,3 +23,9 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      - name: Check generated schemas are up to date
+        run: |
+          go run . schema
+          git diff --exit-code ../../.schemas/repository-config.schema.json ../../.schemas/teams-config.schema.json \
+            || { echo "::error::Generated schemas in .schemas/ are stale. Run 'go run . schema' in feature/github-repo-importer and commit the result."; exit 1; }

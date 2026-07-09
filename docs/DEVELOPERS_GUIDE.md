@@ -104,6 +104,10 @@ These are the primary configuration options for each repository.
 
 - **`branch_protections_v4`**: *(optional, object[] [BranchProtectionV4](#branch-protection-configuration-v4))* Configuration for branch protection rules.
 
+- **`custom_properties`**: *(optional, map[string]string)* A map of GitHub organization custom property names to their string values. See [Custom Properties](#custom-properties).
+
+- **`high_integrity`**: *(optional, object [HighIntegrity](#high-integrity-configuration))* Expansion directives for high-integrity repositories. This field is consumed by the `expand` command and is **not** passed to Terraform — it is removed from the output after expansion.
+
 ## Environment Configuration
 
 ### Environment Fields
@@ -132,6 +136,20 @@ These are the primary configuration options for each repository.
   - **`tag_patterns`**: *(optional, string[])* Tag patterns (e.g., `["v*"]`). Only used when `policy_type` is `"selected_branches_and_tags"`. Set to `null` or omit when using `"protected_branches"`
 
 **📖 For complete guide with examples, see [FEATURE_GITHUB_ENVIRONMENT.md](FEATURE_GITHUB_ENVIRONMENT.md)**
+
+## Custom Properties
+
+[GitHub organization custom properties](https://docs.github.com/en/organizations/managing-organization-settings/managing-custom-properties-for-repositories-in-your-organization) allow organizations to attach structured metadata to repositories — such as lifecycle stage, team ownership, compliance classification, or any other organization-defined attribute. They are defined once at the organization level and can then be set per repository.
+
+The `custom_properties` field is a map of property names to their string values. Custom properties must be defined at the organization level before they can be set on a repository. Only `string`-type custom properties are supported.
+
+Example:
+
+```yaml
+custom_properties:
+  oss_lifecycle: active
+  team: platform
+```
 
 ## Template Configuration
 

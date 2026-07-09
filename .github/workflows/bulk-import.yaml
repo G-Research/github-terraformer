@@ -22,7 +22,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Generate a token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: generate-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -30,7 +30,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Checkout GCSS
-        uses: actions/checkout@v4
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           repository: G-Research/github-terraformer
           ref: ${{ inputs.gcss_ref }}
@@ -43,7 +43,7 @@ jobs:
           checkout-token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup Just
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
         with:
           just-version: '1.4.0'
 

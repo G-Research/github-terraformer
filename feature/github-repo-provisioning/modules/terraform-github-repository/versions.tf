@@ -8,7 +8,7 @@ terraform {
   required_providers {
     github = {
       source = "G-Research-Forks/github"
-      version = "6.9.0-gr.3"
+      version = "6.11.1-gr.1"
     }
   }
 }

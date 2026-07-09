@@ -20,16 +20,18 @@ runs:
         SOURCE_DIRECTORY: ${{ inputs.source-directory }}
         TARGET_DIRECTORY: ${{ inputs.target-directory }}
       run: |
+        set -euo pipefail
         dirA="${SOURCE_DIRECTORY}"
         dirB="${TARGET_DIRECTORY}"
         result=$(just compare "$dirA" "$dirB")
+        files_to_delete=$(echo "$result" | jq -r '.identical[]?')
         if [[ -z "$files_to_delete" ]]; then
-          echo "No files to delete."
+          echo "No identical (unchanged) files to remove."
         else
-          read -p "Waiting review #1..."
-          echo "Files to delete: [$files_to_delete]"
+          echo "Removing unchanged configs from $dirA so the PR only shows real changes:"
           while IFS= read -r relpath; do
-            rm $dirA/$relpath
+            [[ -z "$relpath" ]] && continue
+            rm "$dirA/$relpath"
             echo "Removed: $relpath"
           done <<< "$files_to_delete"
         fi

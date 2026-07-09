@@ -24,6 +24,10 @@ var (
 	v4client *githubv4.Client
 )
 
+// ErrRepoNotFound is returned when the repository to import does not exist or
+// the authenticated GitHub App has no access to it (HTTP 404).
+var ErrRepoNotFound = errors.New("repository not found")
+
 func InitializeClients() {
 	var err error
 	v3client, v4client, err = CreateGitHubClient()
@@ -52,6 +56,18 @@ func DecodeAppsList() (*AppsList, error) {
 	return &appsList, nil
 }
 
+// nilIfEmpty normalises a pointer to an empty string to nil. GitHub returns
+// optional free-text fields (e.g. description, homepage) inconsistently as ""
+// or null over a repo's lifetime, and Terraform treats them as equivalent.
+// Collapsing "" to nil keeps a fresh import byte-stable against the committed
+// config so drift detection doesn't report spurious changes.
+func nilIfEmpty(s *string) *string {
+	if s == nil || *s == "" {
+		return nil
+	}
+	return s
+}
+
 // ImportRepo imports a single repository with feature flags from the provided config
 func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 	fmt.Println("Importing repository: ", repoName)
@@ -77,7 +93,10 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 	repoNameSplit := strings.Split(repoName, "/")
 	repo, r, err := v3client.Repositories.Get(context.Background(), repoNameSplit[0], repoNameSplit[1])
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch repo: %w (API Response: %s)", err, r.Status)
+		if r != nil && r.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: %q — check the spelling and that the GitHub App is installed and has access to it", ErrRepoNotFound, repoName)
+		}
+		return nil, fmt.Errorf("failed to fetch repo %q: %w", repoName, err)
 	}
 
 	if err := dumpManager.WriteJSONFile("repository.json", repo); err != nil {
@@ -167,10 +186,10 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 
 	rulesets, r, err := v3client.Repositories.GetAllRulesets(context.Background(), repoNameSplit[0], repoNameSplit[1], false)
 	if err != nil {
-		if r.StatusCode == http.StatusForbidden {
+		if r != nil && r.StatusCode == http.StatusForbidden {
 			fmt.Printf("skipping rulesets due to insufficient permissions: %v\n", err)
 		} else {
-			return nil, fmt.Errorf("failed to get all rulesets: %v", err)
+			return nil, fmt.Errorf("failed to get all rulesets: %w", err)
 		}
 	}
 
@@ -207,9 +226,9 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		fmt.Printf("failed to write branch_protection_rules.json: %v\n", err)
 	}
 
-	orgTeams, res, err := v3client.Teams.ListTeams(context.Background(), repoNameSplit[0], &github.ListOptions{PerPage: 100})
+	orgTeams, _, err := v3client.Teams.ListTeams(context.Background(), repoNameSplit[0], &github.ListOptions{PerPage: 100})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get org teams: %w (API Response: %s)", err, res.Status)
+		return nil, fmt.Errorf("failed to get org teams: %w", err)
 	}
 
 	if err := dumpManager.WriteJSONFile("org_teams.json", orgTeams); err != nil {
@@ -230,12 +249,17 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		fmt.Printf("failed to resolve rulesets: %v\n", err)
 	}
 
+	customProperties, err := FetchCustomProperties(v3client, repoNameSplit[0], repoNameSplit[1], dumpManager)
+	if err != nil {
+		fmt.Printf("failed to fetch custom properties: %v\n", err)
+	}
+
 	return &Repository{
 		Name:                       repo.GetName(),
 		Owner:                      repo.GetOwner().GetLogin(),
-		Description:                repo.Description,
+		Description:                nilIfEmpty(repo.Description),
 		Visibility:                 repo.GetVisibility(),
-		HomepageURL:                repo.Homepage,
+		HomepageURL:                nilIfEmpty(repo.Homepage),
 		DefaultBranch:              repo.GetDefaultBranch(),
 		HasIssues:                  repo.HasIssues,
 		HasProjects:                repo.HasProjects,
@@ -274,6 +298,7 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		VulnerabilityAlertsEnabled: &vulnerabilityAlertsEnabled,
 		BranchProtectionsV4:        resolveBranchProtectionsFromGraphQL(&branchProtectionRulesGraphQLQuery),
 		Environments:               resolveEnvironments(allEnvironments, v3client, repoNameSplit[0], repoNameSplit[1]),
+		CustomProperties:           customProperties,
 	}, nil
 }
 
