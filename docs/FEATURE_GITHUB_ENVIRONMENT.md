@@ -17,7 +17,7 @@ feature_github_environment: true  # Required to import environments
 environments:
   # Option 1: Protected branches only
   - environment: production
-    wait_timer: 300               # 5 minutes wait before deployment
+    wait_timer: 300               # minutes to wait before deployment (max 43200)
     can_admins_bypass: false      # Admins cannot bypass
     prevent_self_review: true     # Cannot approve own deployments
     reviewers:
@@ -58,7 +58,7 @@ environments:
 | Field | Type | Description | Default |
 |-------|------|-------------|---------|
 | `environment` | string | **Required** - Environment name | - |
-| `wait_timer` | int | Wait time in seconds (max 43200) | 0 |
+| `wait_timer` | int | Wait time in minutes (max 43200, i.e. 30 days) | 0 |
 | `can_admins_bypass` | bool | Admins can bypass protections | true |
 | `prevent_self_review` | bool | Prevent self-approval | false |
 | `reviewers.users` | string[] | GitHub usernames (max 6 total with teams) | [] |

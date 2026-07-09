@@ -624,7 +624,7 @@ variable "environments" {
   #   # Example 1: Protected branches only
   #   {
   #     environment         = "production"
-  #     wait_timer          = 300  # seconds (5 minutes)
+  #     wait_timer          = 300  # minutes (max 43200)
   #     can_admins_bypass   = false
   #     prevent_self_review = true
   #     reviewers = {
