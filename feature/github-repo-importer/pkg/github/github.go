@@ -273,7 +273,6 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 	}, nil
 }
 
-
 func getRoleActors() map[int64]string {
 	return map[int64]string{
 		BypassActorId_OrganizationAdminRole: BypassActorRoleName_OrganizationAdminRole,
@@ -850,6 +849,9 @@ func resolveEnvironments(envs []*github.Environment, client *github.Client, owne
 						return nil, fmt.Errorf("environment %q: unknown reviewer type %q", env.GetName(), *reqReviewer.Type)
 					}
 				}
+			}
+			if total := len(reviewers.Teams) + len(reviewers.Users); total > 6 {
+				return nil, fmt.Errorf("environment %q: %d reviewers exceed the GitHub limit of 6 (users + teams)", env.GetName(), total)
 			}
 			if len(reviewers.Teams) > 0 || len(reviewers.Users) > 0 {
 				environment.Reviewers = reviewers
