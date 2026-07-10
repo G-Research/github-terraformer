@@ -750,52 +750,25 @@ func resolveRepositoryTemplate(githubRepository *github.Repository) *RepositoryT
 }
 
 func fetchDeploymentPolicies(client *github.Client, owner, repo, envName string) ([]string, []string, error) {
+	policies, resp, err := client.Repositories.ListDeploymentBranchPolicies(context.Background(), owner, repo, envName)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, nil, nil
+		}
+		return nil, nil, fmt.Errorf("failed to fetch deployment policies for environment %q: %w", envName, err)
+	}
+
 	var branchPatterns []string
 	var tagPatterns []string
-
-	opts := &github.ListOptions{PerPage: 100}
-	for {
-		req, err := client.NewRequest("GET", fmt.Sprintf("repos/%s/%s/environments/%s/deployment-branch-policies", owner, repo, envName), nil)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to build deployment policies request for environment %q: %w", envName, err)
+	for _, policy := range policies.BranchPolicies {
+		switch policy.GetType() {
+		case "branch":
+			branchPatterns = append(branchPatterns, policy.GetName())
+		case "tag":
+			tagPatterns = append(tagPatterns, policy.GetName())
+		default:
+			return nil, nil, fmt.Errorf("unknown deployment policy type %q for environment %q", policy.GetType(), envName)
 		}
-
-		type DeploymentPolicy struct {
-			ID     int64  `json:"id"`
-			NodeID string `json:"node_id"`
-			Name   string `json:"name"`
-			Type   string `json:"type"`
-		}
-
-		type DeploymentPoliciesResponse struct {
-			TotalCount int                `json:"total_count"`
-			Policies   []DeploymentPolicy `json:"branch_policies"`
-		}
-
-		var result DeploymentPoliciesResponse
-		resp, err := client.Do(context.Background(), req, &result)
-		if err != nil {
-			if resp != nil && resp.StatusCode == http.StatusNotFound {
-				return nil, nil, nil
-			}
-			return nil, nil, fmt.Errorf("failed to fetch deployment policies for environment %q: %w", envName, err)
-		}
-
-		for _, policy := range result.Policies {
-			switch policy.Type {
-			case "branch":
-				branchPatterns = append(branchPatterns, policy.Name)
-			case "tag":
-				tagPatterns = append(tagPatterns, policy.Name)
-			default:
-				return nil, nil, fmt.Errorf("unknown deployment policy type %q for environment %q", policy.Type, envName)
-			}
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
 	}
 
 	return branchPatterns, tagPatterns, nil
@@ -813,6 +786,7 @@ func resolveEnvironments(envs []*github.Environment, client *github.Client, owne
 			CanAdminsBypass: env.CanAdminsBypass,
 		}
 
+		// Extract PreventSelfReview, WaitTimer, and Reviewers from ProtectionRules
 		if len(env.ProtectionRules) > 0 {
 			reviewers := &EnvironmentReviewers{}
 			for _, rule := range env.ProtectionRules {
@@ -826,6 +800,7 @@ func resolveEnvironments(envs []*github.Environment, client *github.Client, owne
 					if reqReviewer.Type == nil || reqReviewer.Reviewer == nil {
 						continue
 					}
+					// The Reviewer field is an interface{} - try different type casts
 					switch *reqReviewer.Type {
 					case "Team":
 						team, ok := reqReviewer.Reviewer.(*github.Team)
