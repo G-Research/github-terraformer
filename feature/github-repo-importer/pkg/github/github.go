@@ -1,7 +1,6 @@
 package github
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -749,29 +748,30 @@ func resolveRepositoryTemplate(githubRepository *github.Repository) *RepositoryT
 	return nil
 }
 
-func fetchDeploymentPolicies(client *github.Client, owner, repo, envName string) ([]string, []string, error) {
-	policies, resp, err := client.Repositories.ListDeploymentBranchPolicies(context.Background(), owner, repo, envName)
-	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil, nil, nil
+func fetchDeploymentPolicies(client *github.Client, owner, repo, envName string) ([]*github.DeploymentBranchPolicy, error) {
+	var all []*github.DeploymentBranchPolicy
+	page := 1
+	for {
+		u := fmt.Sprintf("repos/%s/%s/environments/%s/deployment-branch-policies?per_page=100&page=%d", owner, repo, envName, page)
+		req, err := client.NewRequest("GET", u, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build deployment policies request for environment %q: %w", envName, err)
 		}
-		return nil, nil, fmt.Errorf("failed to fetch deployment policies for environment %q: %w", envName, err)
-	}
-
-	var branchPatterns []string
-	var tagPatterns []string
-	for _, policy := range policies.BranchPolicies {
-		switch policy.GetType() {
-		case "branch":
-			branchPatterns = append(branchPatterns, policy.GetName())
-		case "tag":
-			tagPatterns = append(tagPatterns, policy.GetName())
-		default:
-			return nil, nil, fmt.Errorf("unknown deployment policy type %q for environment %q", policy.GetType(), envName)
+		var result github.DeploymentBranchPolicyResponse
+		resp, err := client.Do(context.Background(), req, &result)
+		if err != nil {
+			if resp != nil && resp.StatusCode == http.StatusNotFound {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("failed to fetch deployment policies for environment %q: %w", envName, err)
 		}
+		all = append(all, result.BranchPolicies...)
+		if resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
 	}
-
-	return branchPatterns, tagPatterns, nil
+	return all, nil
 }
 
 func resolveEnvironments(envs []*github.Environment, client *github.Client, owner, repo string) ([]Environment, error) {
@@ -790,38 +790,32 @@ func resolveEnvironments(envs []*github.Environment, client *github.Client, owne
 		if len(env.ProtectionRules) > 0 {
 			reviewers := &EnvironmentReviewers{}
 			for _, rule := range env.ProtectionRules {
-				if rule.Type != nil && *rule.Type == "wait_timer" && rule.WaitTimer != nil {
+				switch rule.GetType() {
+				case "wait_timer":
 					environment.WaitTimer = rule.WaitTimer
-				}
-				if rule.PreventSelfReview != nil {
+				case "required_reviewers":
 					environment.PreventSelfReview = rule.PreventSelfReview
-				}
-				for _, reqReviewer := range rule.Reviewers {
-					if reqReviewer.Type == nil || reqReviewer.Reviewer == nil {
-						continue
-					}
-					// The Reviewer field is an interface{} - try different type casts
-					switch *reqReviewer.Type {
-					case "Team":
-						team, ok := reqReviewer.Reviewer.(*github.Team)
-						if !ok {
-							return nil, fmt.Errorf("environment %q: reviewer typed Team but payload was %T", env.GetName(), reqReviewer.Reviewer)
+					for _, reqReviewer := range rule.Reviewers {
+						if reqReviewer.Type == nil || reqReviewer.Reviewer == nil {
+							continue
 						}
-						if team.Slug != nil {
-							reviewers.Teams = append(reviewers.Teams, *team.Slug)
-						} else if team.Name != nil {
-							reviewers.Teams = append(reviewers.Teams, *team.Name)
+						// The Reviewer field is an interface{} - try different type casts
+						switch *reqReviewer.Type {
+						case "Team":
+							team, ok := reqReviewer.Reviewer.(*github.Team)
+							if !ok {
+								return nil, fmt.Errorf("environment %q: reviewer typed Team but payload was %T", env.GetName(), reqReviewer.Reviewer)
+							}
+							reviewers.Teams = append(reviewers.Teams, team.GetSlug())
+						case "User":
+							user, ok := reqReviewer.Reviewer.(*github.User)
+							if !ok {
+								return nil, fmt.Errorf("environment %q: reviewer typed User but payload was %T", env.GetName(), reqReviewer.Reviewer)
+							}
+							reviewers.Users = append(reviewers.Users, user.GetLogin())
+						default:
+							return nil, fmt.Errorf("environment %q: unknown reviewer type %q", env.GetName(), *reqReviewer.Type)
 						}
-					case "User":
-						user, ok := reqReviewer.Reviewer.(*github.User)
-						if !ok {
-							return nil, fmt.Errorf("environment %q: reviewer typed User but payload was %T", env.GetName(), reqReviewer.Reviewer)
-						}
-						if user.Login != nil {
-							reviewers.Users = append(reviewers.Users, *user.Login)
-						}
-					default:
-						return nil, fmt.Errorf("environment %q: unknown reviewer type %q", env.GetName(), *reqReviewer.Type)
 					}
 				}
 			}
@@ -839,12 +833,32 @@ func resolveEnvironments(envs []*github.Environment, client *github.Client, owne
 				deploymentPolicy.PolicyType = "protected_branches"
 			} else if env.DeploymentBranchPolicy.CustomBranchPolicies != nil && *env.DeploymentBranchPolicy.CustomBranchPolicies {
 				deploymentPolicy.PolicyType = "selected_branches_and_tags"
-				branchPatterns, tagPatterns, err := fetchDeploymentPolicies(client, owner, repo, env.GetName())
+				policies, err := fetchDeploymentPolicies(client, owner, repo, env.GetName())
 				if err != nil {
 					return nil, err
 				}
-				deploymentPolicy.BranchPatterns = branchPatterns
-				deploymentPolicy.TagPatterns = tagPatterns
+				for _, policy := range policies {
+					switch policy.GetType() {
+					case "branch":
+						deploymentPolicy.BranchPatterns = append(deploymentPolicy.BranchPatterns, policy.GetName())
+						if policy.ID != nil {
+							if deploymentPolicy.BranchPolicyIDs == nil {
+								deploymentPolicy.BranchPolicyIDs = map[string]int64{}
+							}
+							deploymentPolicy.BranchPolicyIDs[policy.GetName()] = *policy.ID
+						}
+					case "tag":
+						deploymentPolicy.TagPatterns = append(deploymentPolicy.TagPatterns, policy.GetName())
+						if policy.ID != nil {
+							if deploymentPolicy.TagPolicyIDs == nil {
+								deploymentPolicy.TagPolicyIDs = map[string]int64{}
+							}
+							deploymentPolicy.TagPolicyIDs[policy.GetName()] = *policy.ID
+						}
+					default:
+						return nil, fmt.Errorf("unknown deployment policy type %q for environment %q", policy.GetType(), env.GetName())
+					}
+				}
 			}
 			if deploymentPolicy.PolicyType != "" {
 				environment.DeploymentPolicy = deploymentPolicy
@@ -1001,21 +1015,17 @@ func CategorizeTeams(client *github.Client, owner, repo string, dumpManager *fil
 }
 
 func WriteRepositoryToYaml(repository *Repository) error {
-	// Use a buffer and encoder with 2-space indentation for consistent formatting
-	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2) // Use 2-space indentation for consistency
-	if err := enc.Encode(repository); err != nil {
+	data, err := yaml.Marshal(repository)
+	if err != nil {
 		return fmt.Errorf("failed to marshal repository to YAML: %w", err)
 	}
-	enc.Close()
 
 	configsBasePath := filepath.Join("./configs", repository.Owner)
 	if err := os.MkdirAll(configsBasePath, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create base directories: %w", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(configsBasePath, fmt.Sprintf("%s.yaml", repository.Name)), buf.Bytes(), os.ModePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(configsBasePath, fmt.Sprintf("%s.yaml", repository.Name)), data, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to write repository to YAML: %w", err)
 	}
 

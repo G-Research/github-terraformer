@@ -664,6 +664,32 @@ locals {
       ]
     ]) : policy.key => policy
   }
+
+  generated_environment_branch_policies = {
+    for policy in flatten([
+      for key, env in local.generated_environments_map : [
+        for pattern in(try(env.environment.deployment_policy.policy_type, "") == "selected_branches_and_tags" ? try(env.environment.deployment_policy.branch_patterns, []) : []) : {
+          key         = "${key}:branch:${pattern}"
+          repository  = env.repository
+          environment = env.environment.environment
+          id          = try(env.environment.deployment_policy.branch_policy_ids[pattern], null)
+        } if try(env.environment.deployment_policy.branch_policy_ids[pattern], null) != null
+      ]
+    ]) : policy.key => policy
+  }
+
+  generated_environment_tag_policies = {
+    for policy in flatten([
+      for key, env in local.generated_environments_map : [
+        for pattern in(try(env.environment.deployment_policy.policy_type, "") == "selected_branches_and_tags" ? try(env.environment.deployment_policy.tag_patterns, []) : []) : {
+          key         = "${key}:tag:${pattern}"
+          repository  = env.repository
+          environment = env.environment.environment
+          id          = try(env.environment.deployment_policy.tag_policy_ids[pattern], null)
+        } if try(env.environment.deployment_policy.tag_policy_ids[pattern], null) != null
+      ]
+    ]) : policy.key => policy
+  }
 }
 
 data "github_user" "environment_reviewer" {
@@ -680,6 +706,18 @@ import {
   for_each = local.generated_environments_map
   to       = github_repository_environment.environment[each.key]
   id       = "${each.value.repository}:${each.value.environment.environment}"
+}
+
+import {
+  for_each = local.generated_environment_branch_policies
+  to       = github_repository_environment_deployment_policy.branch_policy[each.key]
+  id       = "${each.value.repository}:${each.value.environment}:${each.value.id}"
+}
+
+import {
+  for_each = local.generated_environment_tag_policies
+  to       = github_repository_environment_deployment_policy.tag_policy[each.key]
+  id       = "${each.value.repository}:${each.value.environment}:${each.value.id}"
 }
 
 resource "github_repository_environment" "environment" {

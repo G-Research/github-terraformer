@@ -15,7 +15,9 @@ type EnvironmentReviewers struct {
 }
 
 type DeploymentPolicy struct {
-	PolicyType     string   `yaml:"policy_type" jsonschema:"required,enum=protected_branches,enum=selected_branches_and_tags"`
-	BranchPatterns []string `yaml:"branch_patterns,omitempty"`
-	TagPatterns    []string `yaml:"tag_patterns,omitempty"`
+	PolicyType      string           `yaml:"policy_type" jsonschema:"required,enum=protected_branches,enum=selected_branches_and_tags"`
+	BranchPatterns  []string         `yaml:"branch_patterns,omitempty"`
+	TagPatterns     []string         `yaml:"tag_patterns,omitempty"`
+	BranchPolicyIDs map[string]int64 `yaml:"branch_policy_ids,omitempty" jsonschema:"-"`
+	TagPolicyIDs    map[string]int64 `yaml:"tag_policy_ids,omitempty" jsonschema:"-"`
 }

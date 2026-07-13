@@ -100,6 +100,8 @@ func hashNormalizedYamlFile(path string) (string, error) {
 	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
 		root := node.Content[0]
 		removeKey(root, "id")
+		removeKey(root, "branch_policy_ids")
+		removeKey(root, "tag_policy_ids")
 		sortMappingNode(root)
 	}
 
