@@ -17,13 +17,14 @@ const (
 	schemaOutDir            = ".schemas"
 	repositorySchemaOutFile = "repository-config.schema.json"
 	teamsSchemaOutFile      = "teams-config.schema.json"
+	membersSchemaOutFile    = "members-config.schema.json"
 
 	schemaIDURLFormat = "https://raw.githubusercontent.com/G-Research/github-terraformer/refs/heads/main/%s/%s"
 )
 
 var schemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "Generate JSON Schema for the repository and teams configs",
+	Short: "Generate JSON Schema for the repository, teams, and members configs",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projectRoot := "../../"
 		if err := os.MkdirAll(fmt.Sprintf("%s/%s", projectRoot, schemaOutDir), 0o755); err != nil {
@@ -36,6 +37,7 @@ var schemaCmd = &cobra.Command{
 		}{
 			{repositorySchemaOutFile, MarshalRepositoryConfigSchema},
 			{teamsSchemaOutFile, MarshalTeamsConfigSchema},
+			{membersSchemaOutFile, MarshalMembersConfigSchema},
 		}
 
 		for _, s := range schemas {
@@ -165,6 +167,27 @@ func BuildTeamsConfigSchema() *jsonschema.Schema {
 	schema := reflector.Reflect(&github.TeamsConfig{})
 	schema.Title = "Teams Configuration"
 	schema.ID = jsonschema.ID(fmt.Sprintf(schemaIDURLFormat, schemaOutDir, teamsSchemaOutFile))
+
+	return schema
+}
+
+func MarshalMembersConfigSchema() ([]byte, error) {
+	data, err := json.MarshalIndent(BuildMembersConfigSchema(), "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal schema: %w", err)
+	}
+	return data, nil
+}
+
+func BuildMembersConfigSchema() *jsonschema.Schema {
+	reflector := &jsonschema.Reflector{
+		AllowAdditionalProperties: false,
+		FieldNameTag:              "yaml",
+	}
+
+	schema := reflector.Reflect(&github.MembersConfig{})
+	schema.Title = "Members Configuration"
+	schema.ID = jsonschema.ID(fmt.Sprintf(schemaIDURLFormat, schemaOutDir, membersSchemaOutFile))
 
 	return schema
 }

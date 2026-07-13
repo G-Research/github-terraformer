@@ -25,6 +25,9 @@ const (
 	TeamVisibilityVisible = "visible"
 	TeamVisibilitySecret  = "secret"
 
+	MemberRoleOwner  = "owner"
+	MemberRoleMember = "member"
+
 	// Permission levels
 	PermissionRead     = "read"
 	PermissionWrite    = "write"

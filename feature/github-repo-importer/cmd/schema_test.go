@@ -33,6 +33,32 @@ func TestBuildTeamsConfigSchema(t *testing.T) {
 	}
 }
 
+func TestBuildMembersConfigSchema(t *testing.T) {
+	schema := BuildMembersConfigSchema()
+
+	assert.Equal(t, "Members Configuration", schema.Title)
+	assert.True(t, strings.Contains(string(schema.ID), membersSchemaOutFile), "schema $id should point at %s, got %s", membersSchemaOutFile, schema.ID)
+
+	membersDef, ok := schema.Definitions["MembersConfig"]
+	assert.True(t, ok, "schema should define MembersConfig")
+	if ok {
+		_, hasMembers := membersDef.Properties.Get("members")
+		assert.True(t, hasMembers, "MembersConfig should have a members property")
+	}
+
+	memberDef, ok := schema.Definitions["Member"]
+	assert.True(t, ok, "schema should define Member")
+	if ok {
+		assert.Equal(t, []string{"username"}, memberDef.Required)
+
+		role, hasRole := memberDef.Properties.Get("role")
+		assert.True(t, hasRole, "Member should have a role property")
+		if hasRole {
+			assert.Equal(t, []interface{}{"owner", "member"}, role.Enum)
+		}
+	}
+}
+
 func TestBuildRepositoryConfigSchema(t *testing.T) {
 	schema := BuildRepositoryConfigSchema()
 
