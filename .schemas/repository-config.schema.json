@@ -91,6 +91,81 @@
         "ref_name"
       ]
     },
+    "DeploymentPolicy": {
+      "properties": {
+        "policy_type": {
+          "type": "string",
+          "enum": [
+            "protected_branches",
+            "selected_branches_and_tags"
+          ]
+        },
+        "branch_patterns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tag_patterns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "policy_type"
+      ]
+    },
+    "Environment": {
+      "properties": {
+        "environment": {
+          "type": "string"
+        },
+        "wait_timer": {
+          "type": "integer",
+          "maximum": 43200,
+          "minimum": 0
+        },
+        "can_admins_bypass": {
+          "type": "boolean"
+        },
+        "prevent_self_review": {
+          "type": "boolean"
+        },
+        "reviewers": {
+          "$ref": "#/$defs/EnvironmentReviewers"
+        },
+        "deployment_policy": {
+          "$ref": "#/$defs/DeploymentPolicy"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "environment"
+      ]
+    },
+    "EnvironmentReviewers": {
+      "properties": {
+        "teams": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "users": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "HighIntegrityConfig": {
       "properties": {
         "enabled": {
@@ -418,6 +493,12 @@
         "branch_protections_v4": {
           "items": {
             "$ref": "#/$defs/BranchProtectionV4"
+          },
+          "type": "array"
+        },
+        "environments": {
+          "items": {
+            "$ref": "#/$defs/Environment"
           },
           "type": "array"
         },

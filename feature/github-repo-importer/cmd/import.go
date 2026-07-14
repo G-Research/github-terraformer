@@ -8,6 +8,8 @@ import (
 	"github.com/gr-oss-devops/github-repo-importer/pkg/github"
 )
 
+var importConfigPath string
+
 var importCmd = &cobra.Command{
 	Use:   "import [owner/repo]",
 	Short: "Import command reads all repository details and creates a configuration yaml file",
@@ -18,7 +20,12 @@ var importCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		repository := args[0]
 
-		repo, err := github.ImportRepo(repository)
+		cfg, err := DecodeConfiguration(importConfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		repo, err := github.ImportRepo(repository, cfg)
 		if err != nil {
 			return err
 		}
@@ -33,4 +40,5 @@ var importCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(importCmd)
+	importCmd.Flags().StringVarP(&importConfigPath, "config", "c", "./import-config.yaml", "Path to the import config file (default: ./import-config.yaml)")
 }

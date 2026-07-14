@@ -67,7 +67,7 @@ func nilIfEmpty(s *string) *string {
 	return s
 }
 
-func ImportRepo(repoName string) (*Repository, error) {
+func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 	fmt.Println("Importing repository: ", repoName)
 
 	if !isValidRepoFormat(repoName) {
@@ -109,6 +109,44 @@ func ImportRepo(repoName string) (*Repository, error) {
 
 	if err := dumpManager.WriteJSONFile("pages.json", pages); err != nil {
 		fmt.Printf("failed to write pages.json: %v\n", err)
+	}
+
+	var allEnvironments []*github.Environment
+	if cfg != nil && cfg.FeatureGithubEnvironments != nil && *cfg.FeatureGithubEnvironments {
+		envOpts := &github.EnvironmentListOptions{
+			ListOptions: github.ListOptions{PerPage: 100},
+		}
+		for {
+			environments, res, err := v3client.Repositories.ListEnvironments(context.Background(), repoNameSplit[0], repoNameSplit[1], envOpts)
+			if err != nil {
+				if res != nil && res.StatusCode == http.StatusNotFound {
+					break
+				}
+				return nil, fmt.Errorf("failed to list environments for %q: %w", repoName, err)
+			}
+
+			if err := dumpManager.WriteJSONFile("environments.json", environments); err != nil {
+				fmt.Printf("failed to write environments.json: %v\n", err)
+			}
+
+			if environments != nil {
+				for _, env := range environments.Environments {
+					if env.Name == nil {
+						continue
+					}
+					fullEnv, _, err := v3client.Repositories.GetEnvironment(context.Background(), repoNameSplit[0], repoNameSplit[1], *env.Name)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get environment %q for %q: %w", *env.Name, repoName, err)
+					}
+					allEnvironments = append(allEnvironments, fullEnv)
+				}
+			}
+
+			if res.NextPage == 0 {
+				break
+			}
+			envOpts.Page = res.NextPage
+		}
 	}
 
 	rulesets, r, err := v3client.Repositories.GetAllRulesets(context.Background(), repoNameSplit[0], repoNameSplit[1], false)
@@ -181,6 +219,11 @@ func ImportRepo(repoName string) (*Repository, error) {
 		fmt.Printf("failed to fetch custom properties: %v\n", err)
 	}
 
+	resolvedEnvironments, err := resolveEnvironments(allEnvironments, v3client, repoNameSplit[0], repoNameSplit[1])
+	if err != nil {
+		return nil, err
+	}
+
 	return &Repository{
 		Name:                       repo.GetName(),
 		Owner:                      repo.GetOwner().GetLogin(),
@@ -224,6 +267,7 @@ func ImportRepo(repoName string) (*Repository, error) {
 		Rulesets:                   resolvedRulesets,
 		VulnerabilityAlertsEnabled: &vulnerabilityAlertsEnabled,
 		BranchProtectionsV4:        resolveBranchProtectionsFromGraphQL(&branchProtectionRulesGraphQLQuery),
+		Environments:               resolvedEnvironments,
 		CustomProperties:           customProperties,
 	}, nil
 }
@@ -298,7 +342,7 @@ func ImportRepos(cfg Config) ([]*Repository, error) {
 
 	var importedRepos []*Repository
 	for _, repoToImport := range reposToImport {
-		repository, err := ImportRepo(repoToImport)
+		repository, err := ImportRepo(repoToImport, &cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to import repository %s: %w", repository.Name, err)
 		}
@@ -702,6 +746,129 @@ func resolveRepositoryTemplate(githubRepository *github.Repository) *RepositoryT
 		}
 	}
 	return nil
+}
+
+func fetchDeploymentPolicies(client *github.Client, owner, repo, envName string) ([]*github.DeploymentBranchPolicy, error) {
+	var all []*github.DeploymentBranchPolicy
+	page := 1
+	for {
+		u := fmt.Sprintf("repos/%s/%s/environments/%s/deployment-branch-policies?per_page=100&page=%d", owner, repo, envName, page)
+		req, err := client.NewRequest("GET", u, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build deployment policies request for environment %q: %w", envName, err)
+		}
+		var result github.DeploymentBranchPolicyResponse
+		resp, err := client.Do(context.Background(), req, &result)
+		if err != nil {
+			if resp != nil && resp.StatusCode == http.StatusNotFound {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("failed to fetch deployment policies for environment %q: %w", envName, err)
+		}
+		all = append(all, result.BranchPolicies...)
+		if resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
+	}
+	return all, nil
+}
+
+func resolveEnvironments(envs []*github.Environment, client *github.Client, owner, repo string) ([]Environment, error) {
+	if len(envs) == 0 {
+		return nil, nil
+	}
+
+	var environments []Environment
+	for _, env := range envs {
+		environment := Environment{
+			Environment:     env.GetName(),
+			CanAdminsBypass: env.CanAdminsBypass,
+		}
+
+		// Extract PreventSelfReview, WaitTimer, and Reviewers from ProtectionRules
+		if len(env.ProtectionRules) > 0 {
+			reviewers := &EnvironmentReviewers{}
+			for _, rule := range env.ProtectionRules {
+				switch rule.GetType() {
+				case "wait_timer":
+					environment.WaitTimer = rule.WaitTimer
+				case "required_reviewers":
+					environment.PreventSelfReview = rule.PreventSelfReview
+					for _, reqReviewer := range rule.Reviewers {
+						if reqReviewer.Type == nil || reqReviewer.Reviewer == nil {
+							continue
+						}
+						// The Reviewer field is an interface{} - try different type casts
+						switch *reqReviewer.Type {
+						case "Team":
+							team, ok := reqReviewer.Reviewer.(*github.Team)
+							if !ok {
+								return nil, fmt.Errorf("environment %q: reviewer typed Team but payload was %T", env.GetName(), reqReviewer.Reviewer)
+							}
+							reviewers.Teams = append(reviewers.Teams, team.GetSlug())
+						case "User":
+							user, ok := reqReviewer.Reviewer.(*github.User)
+							if !ok {
+								return nil, fmt.Errorf("environment %q: reviewer typed User but payload was %T", env.GetName(), reqReviewer.Reviewer)
+							}
+							reviewers.Users = append(reviewers.Users, user.GetLogin())
+						default:
+							return nil, fmt.Errorf("environment %q: unknown reviewer type %q", env.GetName(), *reqReviewer.Type)
+						}
+					}
+				}
+			}
+			if total := len(reviewers.Teams) + len(reviewers.Users); total > 6 {
+				return nil, fmt.Errorf("environment %q: %d reviewers exceed the GitHub limit of 6 (users + teams)", env.GetName(), total)
+			}
+			if len(reviewers.Teams) > 0 || len(reviewers.Users) > 0 {
+				environment.Reviewers = reviewers
+			}
+		}
+
+		if env.DeploymentBranchPolicy != nil {
+			deploymentPolicy := &DeploymentPolicy{}
+			if env.DeploymentBranchPolicy.ProtectedBranches != nil && *env.DeploymentBranchPolicy.ProtectedBranches {
+				deploymentPolicy.PolicyType = "protected_branches"
+			} else if env.DeploymentBranchPolicy.CustomBranchPolicies != nil && *env.DeploymentBranchPolicy.CustomBranchPolicies {
+				deploymentPolicy.PolicyType = "selected_branches_and_tags"
+				policies, err := fetchDeploymentPolicies(client, owner, repo, env.GetName())
+				if err != nil {
+					return nil, err
+				}
+				for _, policy := range policies {
+					switch policy.GetType() {
+					case "branch":
+						deploymentPolicy.BranchPatterns = append(deploymentPolicy.BranchPatterns, policy.GetName())
+						if policy.ID != nil {
+							if deploymentPolicy.BranchPolicyIDs == nil {
+								deploymentPolicy.BranchPolicyIDs = map[string]int64{}
+							}
+							deploymentPolicy.BranchPolicyIDs[policy.GetName()] = *policy.ID
+						}
+					case "tag":
+						deploymentPolicy.TagPatterns = append(deploymentPolicy.TagPatterns, policy.GetName())
+						if policy.ID != nil {
+							if deploymentPolicy.TagPolicyIDs == nil {
+								deploymentPolicy.TagPolicyIDs = map[string]int64{}
+							}
+							deploymentPolicy.TagPolicyIDs[policy.GetName()] = *policy.ID
+						}
+					default:
+						return nil, fmt.Errorf("unknown deployment policy type %q for environment %q", policy.GetType(), env.GetName())
+					}
+				}
+			}
+			if deploymentPolicy.PolicyType != "" {
+				environment.DeploymentPolicy = deploymentPolicy
+			}
+		}
+
+		environments = append(environments, environment)
+	}
+
+	return environments, nil
 }
 
 func resolveVisibility(private bool) string {

@@ -96,7 +96,7 @@ jobs:
             mkdir -p "$dst"
         
             find "$src" -type f -name '*.yaml' | while read file; do
-              yq '. |= ( with(select(.rulesets[] != null); .rulesets[] |= del(.id)) | with(select(.rulesets[] == null); .) )' -i $file
+              yq '. |= ( with(select(.rulesets[] != null); .rulesets[] |= del(.id)) | with(select(.rulesets[] == null); .) ) | del(.environments[].deployment_policy.branch_policy_ids) | del(.environments[].deployment_policy.tag_policy_ids)' -i $file
             done
 
             find "$src" -maxdepth 1 -type f \( -name "*.yaml" -o -name ".*.yaml" \) -print -exec mv {} "$dst" \;

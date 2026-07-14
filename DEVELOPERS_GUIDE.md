@@ -100,6 +100,8 @@ These are the primary configuration options for each repository.
 
 - **`vulnerability_alerts_enabled`**: *(optional, boolean)* If `true`, vulnerability alerts are enabled.
 
+- **`environments`**: *(optional, object[] [Environment](#environment-configuration))* Configuration for repository environments. Requires `feature_github_environments: true` in the import config. When imported, environments are managed by Terraform.
+
 - **`branch_protections_v4`**: *(optional, object[] [BranchProtectionV4](#branch-protection-configuration-v4))* Configuration for branch protection rules.
 
 - **`custom_properties`**: *(optional, map[string]string)* A map of GitHub organization custom property names to their string values. See [Custom Properties](#custom-properties).
@@ -125,6 +127,27 @@ Example:
 high_integrity:
   enabled: true
 ```
+
+## Environment Configuration
+
+### Environment Fields
+
+- **`environment`**: *(required, string)* Environment name
+- **`wait_timer`**: *(optional, int)* Delay in minutes (max 43200, i.e. 30 days)
+- **`can_admins_bypass`**: *(optional, bool)* Admin bypass allowed (default: true)
+- **`prevent_self_review`**: *(optional, bool)* Prevent self-approval (default: false)
+- **`reviewers`**: *(optional, object)* At most 6 reviewers total across `users` and `teams`.
+  - **`users`**: *(string[])* GitHub usernames
+  - **`teams`**: *(string[])* Team slugs
+
+  > ⚠️ **Team access requirement**
+  >
+  > Teams specified as reviewers must have repository access first, otherwise Terraform applies successfully but the teams are not added as reviewers and the next plan/apply keeps showing them as proposed changes.
+
+- **`deployment_policy`**: *(optional, object)* Controls which branches/tags can deploy to this environment.
+  - **`policy_type`**: *(required, string)* One of `protected_branches` (only protected branches can deploy) or `selected_branches_and_tags` (specific branch/tag patterns can deploy).
+  - **`branch_patterns`**: *(optional, string[])* Branch patterns (e.g. `["main", "release/*"]`). Only used when `policy_type` is `selected_branches_and_tags`; omit otherwise.
+  - **`tag_patterns`**: *(optional, string[])* Tag patterns (e.g. `["v*"]`). Only used when `policy_type` is `selected_branches_and_tags`; omit otherwise.
 
 ## Custom Properties
 

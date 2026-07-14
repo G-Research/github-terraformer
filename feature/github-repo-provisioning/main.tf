@@ -601,3 +601,175 @@ resource "github_repository_custom_property" "custom_property" {
     ignore_changes = [property_type] # At this moment the provider does not support updates to the property_type field, so we set it to a default value and ignore changes to it
   }
 }
+
+locals {
+  new_environments_flattened = flatten([
+    for repo, config in local.new_repos : [
+      for environment in try(config.environments, []) : {
+        repository  = repo
+        environment = environment
+      }
+    ]
+  ])
+
+  new_environments_map = {
+    for item in local.new_environments_flattened :
+    "${item.repository}:${item.environment.environment}" => item
+  }
+
+  generated_environments_flattened = flatten([
+    for repo, config in local.generated_repos : [
+      for environment in try(config.environments, []) : {
+        repository  = repo
+        environment = environment
+      }
+    ]
+  ])
+
+  generated_environments_map = {
+    for item in local.generated_environments_flattened :
+    "${item.repository}:${item.environment.environment}" => item
+  }
+
+  all_environments_map = merge(local.new_environments_map, local.generated_environments_map)
+
+  environment_reviewer_usernames = distinct(flatten([
+    for item in values(local.all_environments_map) : try(item.environment.reviewers.users, [])
+  ]))
+
+  environment_reviewer_team_slugs = distinct(flatten([
+    for item in values(local.all_environments_map) : try(item.environment.reviewers.teams, [])
+  ]))
+
+  environment_branch_policies = {
+    for policy in flatten([
+      for key, env in local.all_environments_map : [
+        for pattern in(try(env.environment.deployment_policy.policy_type, "") == "selected_branches_and_tags" ? try(env.environment.deployment_policy.branch_patterns, []) : []) : {
+          key         = "${key}:branch:${pattern}"
+          environment = key
+          pattern     = pattern
+        }
+      ]
+    ]) : policy.key => policy
+  }
+
+  environment_tag_policies = {
+    for policy in flatten([
+      for key, env in local.all_environments_map : [
+        for pattern in(try(env.environment.deployment_policy.policy_type, "") == "selected_branches_and_tags" ? try(env.environment.deployment_policy.tag_patterns, []) : []) : {
+          key         = "${key}:tag:${pattern}"
+          environment = key
+          pattern     = pattern
+        }
+      ]
+    ]) : policy.key => policy
+  }
+
+  generated_environment_branch_policies = {
+    for policy in flatten([
+      for key, env in local.generated_environments_map : [
+        for pattern in(try(env.environment.deployment_policy.policy_type, "") == "selected_branches_and_tags" ? try(env.environment.deployment_policy.branch_patterns, []) : []) : {
+          key         = "${key}:branch:${pattern}"
+          repository  = env.repository
+          environment = env.environment.environment
+          id          = try(env.environment.deployment_policy.branch_policy_ids[pattern], null)
+        } if try(env.environment.deployment_policy.branch_policy_ids[pattern], null) != null
+      ]
+    ]) : policy.key => policy
+  }
+
+  generated_environment_tag_policies = {
+    for policy in flatten([
+      for key, env in local.generated_environments_map : [
+        for pattern in(try(env.environment.deployment_policy.policy_type, "") == "selected_branches_and_tags" ? try(env.environment.deployment_policy.tag_patterns, []) : []) : {
+          key         = "${key}:tag:${pattern}"
+          repository  = env.repository
+          environment = env.environment.environment
+          id          = try(env.environment.deployment_policy.tag_policy_ids[pattern], null)
+        } if try(env.environment.deployment_policy.tag_policy_ids[pattern], null) != null
+      ]
+    ]) : policy.key => policy
+  }
+}
+
+data "github_user" "environment_reviewer" {
+  for_each = toset(local.environment_reviewer_usernames)
+  username = each.value
+}
+
+data "github_team" "environment_reviewer" {
+  for_each = toset(local.environment_reviewer_team_slugs)
+  slug     = each.value
+}
+
+import {
+  for_each = local.generated_environments_map
+  to       = github_repository_environment.environment[each.key]
+  id       = "${each.value.repository}:${each.value.environment.environment}"
+}
+
+import {
+  for_each = local.generated_environment_branch_policies
+  to       = github_repository_environment_deployment_policy.branch_policy[each.key]
+  id       = "${each.value.repository}:${each.value.environment}:${each.value.id}"
+}
+
+import {
+  for_each = local.generated_environment_tag_policies
+  to       = github_repository_environment_deployment_policy.tag_policy[each.key]
+  id       = "${each.value.repository}:${each.value.environment}:${each.value.id}"
+}
+
+resource "github_repository_environment" "environment" {
+  depends_on = [module.repository]
+
+  for_each            = local.all_environments_map
+  repository          = each.value.repository
+  environment         = each.value.environment.environment
+  wait_timer          = try(each.value.environment.wait_timer, null)
+  can_admins_bypass   = try(each.value.environment.can_admins_bypass, true)
+  prevent_self_review = try(each.value.environment.prevent_self_review, false)
+
+  dynamic "reviewers" {
+    for_each = try(each.value.environment.reviewers, null) != null ? [each.value.environment.reviewers] : []
+
+    content {
+      teams = try(reviewers.value.teams, null) != null ? [
+        for slug in reviewers.value.teams : data.github_team.environment_reviewer[slug].id
+      ] : null
+
+      users = try(reviewers.value.users, null) != null ? [
+        for username in reviewers.value.users : data.github_user.environment_reviewer[username].id
+      ] : null
+    }
+  }
+
+  dynamic "deployment_branch_policy" {
+    for_each = (
+      try(each.value.environment.deployment_policy.policy_type, "") == "protected_branches" ? [{ protected_branches = true, custom_branch_policies = false }] :
+      try(each.value.environment.deployment_policy.policy_type, "") == "selected_branches_and_tags" ? [{ protected_branches = false, custom_branch_policies = true }] :
+      []
+    )
+
+    content {
+      protected_branches     = deployment_branch_policy.value.protected_branches
+      custom_branch_policies = deployment_branch_policy.value.custom_branch_policies
+    }
+  }
+}
+
+resource "github_repository_environment_deployment_policy" "branch_policy" {
+  for_each = local.environment_branch_policies
+
+  repository     = github_repository_environment.environment[each.value.environment].repository
+  environment    = github_repository_environment.environment[each.value.environment].environment
+  branch_pattern = each.value.pattern
+}
+
+resource "github_repository_environment_deployment_policy" "tag_policy" {
+  for_each = local.environment_tag_policies
+
+  repository  = github_repository_environment.environment[each.value.environment].repository
+  environment = github_repository_environment.environment[each.value.environment].environment
+  tag_pattern = each.value.pattern
+}
