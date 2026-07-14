@@ -51,6 +51,17 @@ func TestMembersConfigValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "duplicate team within a member's teams list rejected",
+			config: MembersConfig{
+				Members: []Member{
+					{Username: "alice", Role: MemberRoleMember, Teams: []string{"platform", "platform"}},
+				},
+			},
+			wantErrors: []string{
+				`member "alice" lists team "platform" more than once`,
+			},
+		},
+		{
 			name: "protected owner missing from members.yaml",
 			config: MembersConfig{
 				Members: []Member{

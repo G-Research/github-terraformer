@@ -9,7 +9,7 @@ type MembersConfig struct {
 type Member struct {
 	Username string   `yaml:"username" jsonschema:"required"`
 	Role     string   `yaml:"role,omitempty" jsonschema:"enum=owner,enum=member"`
-	Teams    []string `yaml:"teams,omitempty"`
+	Teams    []string `yaml:"teams,omitempty" jsonschema:"uniqueItems=true"`
 }
 
 func (c *MembersConfig) Validate(knownTeams []string, protectedOwners []string) []error {
@@ -27,7 +27,13 @@ func (c *MembersConfig) Validate(knownTeams []string, protectedOwners []string) 
 		}
 		seen[member.Username] = member
 
+		memberTeams := make(map[string]struct{}, len(member.Teams))
 		for _, team := range member.Teams {
+			if _, exists := memberTeams[team]; exists {
+				errs = append(errs, fmt.Errorf("member %q lists team %q more than once", member.Username, team))
+			}
+			memberTeams[team] = struct{}{}
+
 			if _, ok := teamSet[team]; !ok {
 				errs = append(errs, fmt.Errorf("member %q references team %q which is not defined in teams.yaml", member.Username, team))
 			}

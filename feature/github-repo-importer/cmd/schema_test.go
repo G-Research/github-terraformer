@@ -56,6 +56,12 @@ func TestBuildMembersConfigSchema(t *testing.T) {
 		if hasRole {
 			assert.Equal(t, []interface{}{"owner", "member"}, role.Enum)
 		}
+
+		teams, hasTeams := memberDef.Properties.Get("teams")
+		assert.True(t, hasTeams, "Member should have a teams property")
+		if hasTeams {
+			assert.True(t, teams.UniqueItems, "teams should require unique items")
+		}
 	}
 }
 
