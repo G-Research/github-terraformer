@@ -19,6 +19,11 @@ func listAllTeams(ctx context.Context, org string) ([]*github.Team, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to list teams: %w", err)
 		}
+		for _, t := range teams {
+			if t.Parent != nil {
+				return nil, fmt.Errorf("team %q has parent team %q: nested teams are not supported, cannot import", t.GetName(), t.GetParent().GetName())
+			}
+		}
 		all = append(all, teams...)
 		if resp.NextPage == 0 {
 			break
