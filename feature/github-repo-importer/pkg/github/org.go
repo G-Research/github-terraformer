@@ -54,6 +54,11 @@ func ImportOrgTeams(org string) (*TeamsConfig, error) {
 	for _, t := range ghTeams {
 		team := Team{Name: t.GetName()}
 
+		if slug := t.GetSlug(); slug != "" {
+			s := slug
+			team.Slug = &s
+		}
+
 		if desc := t.GetDescription(); desc != "" {
 			d := desc
 			team.Description = &d
