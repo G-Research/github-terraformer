@@ -16,11 +16,11 @@ func TestMembersConfigValidate(t *testing.T) {
 		wantErrors      []string
 	}{
 		{
-			name: "valid config",
+			name: "valid config with team member and maintainer roles",
 			config: MembersConfig{
 				Members: []Member{
-					{Username: "alice", Role: MemberRoleOwner, Teams: []string{"platform"}},
-					{Username: "bob", Role: MemberRoleMember, Teams: []string{"platform", "security-core"}},
+					{Username: "alice", Role: MemberRoleOwner, Teams: []TeamMembership{{Name: "platform"}}},
+					{Username: "bob", Role: MemberRoleMember, Teams: []TeamMembership{{Name: "platform", Role: TeamRoleMaintainer}, {Name: "security-core"}}},
 					{Username: "carol", Role: MemberRoleMember},
 				},
 			},
@@ -43,7 +43,7 @@ func TestMembersConfigValidate(t *testing.T) {
 			name: "team reference not defined in teams.yaml",
 			config: MembersConfig{
 				Members: []Member{
-					{Username: "alice", Role: MemberRoleMember, Teams: []string{"ghost"}},
+					{Username: "alice", Role: MemberRoleMember, Teams: []TeamMembership{{Name: "ghost"}}},
 				},
 			},
 			wantErrors: []string{
@@ -54,7 +54,7 @@ func TestMembersConfigValidate(t *testing.T) {
 			name: "duplicate team within a member's teams list rejected",
 			config: MembersConfig{
 				Members: []Member{
-					{Username: "alice", Role: MemberRoleMember, Teams: []string{"platform", "platform"}},
+					{Username: "alice", Role: MemberRoleMember, Teams: []TeamMembership{{Name: "platform"}, {Name: "platform", Role: TeamRoleMaintainer}}},
 				},
 			},
 			wantErrors: []string{
@@ -89,7 +89,7 @@ func TestMembersConfigValidate(t *testing.T) {
 			name: "multiple violations all reported in one call",
 			config: MembersConfig{
 				Members: []Member{
-					{Username: "alice", Role: MemberRoleMember, Teams: []string{"ghost"}},
+					{Username: "alice", Role: MemberRoleMember, Teams: []TeamMembership{{Name: "ghost"}}},
 					{Username: "alice", Role: MemberRoleMember},
 				},
 			},

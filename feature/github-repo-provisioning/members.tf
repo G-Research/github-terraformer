@@ -14,7 +14,8 @@ locals {
       for username, m in local.members_by_username : try([
         for team in m.teams : {
           username = username
-          team     = team
+          team     = team.name
+          role     = try(team.role, "member")
         }
       ], [])
     ]) : "${pair.username}/${pair.team}" => pair
@@ -33,5 +34,5 @@ resource "github_team_membership" "membership" {
 
   team_id  = github_team.team[each.value.team].id
   username = each.value.username
-  role     = "member"
+  role     = each.value.role
 }

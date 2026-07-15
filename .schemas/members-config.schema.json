@@ -17,10 +17,9 @@
         },
         "teams": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/TeamMembership"
           },
-          "type": "array",
-          "uniqueItems": true
+          "type": "array"
         }
       },
       "additionalProperties": false,
@@ -40,6 +39,25 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "TeamMembership": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "member",
+            "maintainer"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
     }
   },
   "title": "Members Configuration"
