@@ -11,50 +11,77 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func listAllTeams(ctx context.Context, org string) ([]*github.Team, error) {
-	var all []*github.Team
-	opts := &github.ListOptions{PerPage: DefaultPageSize}
+type orgTeam struct {
+	github.Team
+	NotificationSetting string `json:"notification_setting"`
+}
+
+type teamRoster struct {
+	name        string
+	maintainers []string
+	members     []string
+}
+
+func ImportOrg(org string) (*TeamsConfig, *MembersConfig, error) {
+	ctx := context.Background()
+
+	ghTeams, err := listAllTeams(ctx, org)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := rejectNestedTeams(ghTeams); err != nil {
+		return nil, nil, err
+	}
+
+	memberLogins, err := listMemberLogins(ctx, org, "all")
+	if err != nil {
+		return nil, nil, err
+	}
+	adminLogins, err := listMemberLogins(ctx, org, "admin")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rosters, err := fetchTeamRosters(ctx, org, ghTeams)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return buildTeamsConfig(ghTeams), buildMembersConfig(memberLogins, adminLogins, rosters), nil
+}
+
+func listAllTeams(ctx context.Context, org string) ([]*orgTeam, error) {
+	var all []*orgTeam
+	page := 1
 	for {
-		teams, resp, err := v3client.Teams.ListTeams(ctx, org, opts)
+		req, err := v3client.NewRequest("GET", fmt.Sprintf("orgs/%s/teams?per_page=%d&page=%d", org, DefaultPageSize, page), nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build teams request: %w", err)
+		}
+		var teams []*orgTeam
+		resp, err := v3client.Do(ctx, req, &teams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list teams: %w", err)
-		}
-		for _, t := range teams {
-			if t.Parent != nil {
-				return nil, fmt.Errorf("team %q has parent team %q: nested teams are not supported, cannot import", t.GetName(), t.GetParent().GetName())
-			}
 		}
 		all = append(all, teams...)
 		if resp.NextPage == 0 {
 			break
 		}
-		opts.Page = resp.NextPage
+		page = resp.NextPage
 	}
 	return all, nil
 }
 
-func getTeamNotificationSetting(ctx context.Context, org, slug string) (string, error) {
-	req, err := v3client.NewRequest("GET", fmt.Sprintf("orgs/%s/teams/%s", org, slug), nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to build team request: %w", err)
+func rejectNestedTeams(teams []*orgTeam) error {
+	for _, t := range teams {
+		if t.Parent != nil {
+			return fmt.Errorf("team %q has parent team %q: nested teams are not supported, cannot import", t.GetName(), t.GetParent().GetName())
+		}
 	}
-	var detail struct {
-		NotificationSetting string `json:"notification_setting"`
-	}
-	if _, err := v3client.Do(ctx, req, &detail); err != nil {
-		return "", fmt.Errorf("failed to get team %q: %w", slug, err)
-	}
-	return detail.NotificationSetting, nil
+	return nil
 }
 
-func ImportOrgTeams(org string) (*TeamsConfig, error) {
-	ctx := context.Background()
-
-	ghTeams, err := listAllTeams(ctx, org)
-	if err != nil {
-		return nil, err
-	}
-
+func buildTeamsConfig(ghTeams []*orgTeam) *TeamsConfig {
 	teams := make([]Team, 0, len(ghTeams))
 	for _, t := range ghTeams {
 		team := Team{Name: t.GetName()}
@@ -75,27 +102,23 @@ func ImportOrgTeams(org string) (*TeamsConfig, error) {
 			team.Visibility = TeamVisibilityVisible
 		}
 
-		setting, err := getTeamNotificationSetting(ctx, org, t.GetSlug())
-		if err != nil {
-			return nil, err
-		}
-		notifications := setting != "notifications_disabled"
+		notifications := t.NotificationSetting != "notifications_disabled"
 		team.Notifications = &notifications
 
 		teams = append(teams, team)
 	}
 
 	sort.Slice(teams, func(i, j int) bool { return teams[i].Name < teams[j].Name })
-	return &TeamsConfig{Teams: teams}, nil
+	return &TeamsConfig{Teams: teams}
 }
 
-func listOrgMemberLogins(ctx context.Context, org string) ([]string, error) {
+func listMemberLogins(ctx context.Context, org, role string) ([]string, error) {
 	var logins []string
-	opts := &github.ListMembersOptions{ListOptions: github.ListOptions{PerPage: DefaultPageSize}}
+	opts := &github.ListMembersOptions{Role: role, ListOptions: github.ListOptions{PerPage: DefaultPageSize}}
 	for {
 		users, resp, err := v3client.Organizations.ListMembers(ctx, org, opts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list org members: %w", err)
+			return nil, fmt.Errorf("failed to list org members (role %s): %w", role, err)
 		}
 		for _, u := range users {
 			logins = append(logins, u.GetLogin())
@@ -108,59 +131,66 @@ func listOrgMemberLogins(ctx context.Context, org string) ([]string, error) {
 	return logins, nil
 }
 
-func addTeamMembersWithRole(ctx context.Context, org, teamSlug, teamName, apiRole, yamlRole string, membersByLogin map[string]*Member) error {
-	opts := &github.TeamListTeamMembersOptions{Role: apiRole, ListOptions: github.ListOptions{PerPage: DefaultPageSize}}
+func fetchTeamRosters(ctx context.Context, org string, ghTeams []*orgTeam) ([]teamRoster, error) {
+	rosters := make([]teamRoster, 0, len(ghTeams))
+	for _, t := range ghTeams {
+		maintainers, err := listTeamMemberLogins(ctx, org, t.GetSlug(), "maintainer")
+		if err != nil {
+			return nil, err
+		}
+		members, err := listTeamMemberLogins(ctx, org, t.GetSlug(), "member")
+		if err != nil {
+			return nil, err
+		}
+		rosters = append(rosters, teamRoster{name: t.GetName(), maintainers: maintainers, members: members})
+	}
+	return rosters, nil
+}
+
+func listTeamMemberLogins(ctx context.Context, org, teamSlug, role string) ([]string, error) {
+	var logins []string
+	opts := &github.TeamListTeamMembersOptions{Role: role, ListOptions: github.ListOptions{PerPage: DefaultPageSize}}
 	for {
 		users, resp, err := v3client.Teams.ListTeamMembersBySlug(ctx, org, teamSlug, opts)
 		if err != nil {
-			return fmt.Errorf("failed to list %s of team %q: %w", apiRole, teamSlug, err)
+			return nil, fmt.Errorf("failed to list %s of team %q: %w", role, teamSlug, err)
 		}
 		for _, u := range users {
-			member, ok := membersByLogin[u.GetLogin()]
-			if !ok {
-				continue
-			}
-			member.Teams = append(member.Teams, TeamMembership{Name: teamName, Role: yamlRole})
+			logins = append(logins, u.GetLogin())
 		}
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	return nil
+	return logins, nil
 }
 
-func ImportOrgMembers(org string) (*MembersConfig, error) {
-	ctx := context.Background()
-
-	logins, err := listOrgMemberLogins(ctx, org)
-	if err != nil {
-		return nil, err
+func buildMembersConfig(memberLogins, adminLogins []string, rosters []teamRoster) *MembersConfig {
+	adminSet := make(map[string]struct{}, len(adminLogins))
+	for _, login := range adminLogins {
+		adminSet[login] = struct{}{}
 	}
 
-	membersByLogin := make(map[string]*Member, len(logins))
-	for _, login := range logins {
-		membership, _, err := v3client.Organizations.GetOrgMembership(ctx, login, org)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get membership for %q: %w", login, err)
-		}
+	membersByLogin := make(map[string]*Member, len(memberLogins))
+	for _, login := range memberLogins {
 		role := MemberRoleMember
-		if membership.GetRole() == "admin" {
+		if _, ok := adminSet[login]; ok {
 			role = MemberRoleOwner
 		}
 		membersByLogin[login] = &Member{Username: login, Role: role}
 	}
 
-	ghTeams, err := listAllTeams(ctx, org)
-	if err != nil {
-		return nil, err
-	}
-	for _, t := range ghTeams {
-		if err := addTeamMembersWithRole(ctx, org, t.GetSlug(), t.GetName(), "maintainer", TeamRoleMaintainer, membersByLogin); err != nil {
-			return nil, err
+	for _, roster := range rosters {
+		for _, login := range roster.maintainers {
+			if member, ok := membersByLogin[login]; ok {
+				member.Teams = append(member.Teams, TeamMembership{Name: roster.name, Role: TeamRoleMaintainer})
+			}
 		}
-		if err := addTeamMembersWithRole(ctx, org, t.GetSlug(), t.GetName(), "member", "", membersByLogin); err != nil {
-			return nil, err
+		for _, login := range roster.members {
+			if member, ok := membersByLogin[login]; ok {
+				member.Teams = append(member.Teams, TeamMembership{Name: roster.name})
+			}
 		}
 	}
 
@@ -170,7 +200,7 @@ func ImportOrgMembers(org string) (*MembersConfig, error) {
 		members = append(members, *m)
 	}
 	sort.Slice(members, func(i, j int) bool { return members[i].Username < members[j].Username })
-	return &MembersConfig{Members: members}, nil
+	return &MembersConfig{Members: members}
 }
 
 func WriteOrgConfig(org string, teams *TeamsConfig, members *MembersConfig) error {

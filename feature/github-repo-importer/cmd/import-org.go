@@ -17,14 +17,9 @@ var importOrgCmd = &cobra.Command{
 		github.InitializeClients()
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		teams, err := github.ImportOrgTeams(importOrgOrg)
+		teams, members, err := github.ImportOrg(importOrgOrg)
 		if err != nil {
-			return fmt.Errorf("failed to import teams: %w", err)
-		}
-
-		members, err := github.ImportOrgMembers(importOrgOrg)
-		if err != nil {
-			return fmt.Errorf("failed to import members: %w", err)
+			return fmt.Errorf("failed to import organisation: %w", err)
 		}
 
 		if err := github.WriteOrgConfig(importOrgOrg, teams, members); err != nil {
