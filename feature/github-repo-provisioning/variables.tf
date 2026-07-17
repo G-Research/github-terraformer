@@ -22,9 +22,3 @@ variable "environment_directory" {
   description = "Environment directory"
   type        = string
 }
-
-variable "bootstrap" {
-  description = "When true, import existing organisation teams and members into state so the first apply is a no-op. Set only for the one-time bootstrap run."
-  type        = bool
-  default     = false
-}
