@@ -11,6 +11,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TODO: drop this struct and the raw teams call in listAllTeams once go-github
+// is bumped to v69, where NotificationSetting is part of the Team read model.
+// The bump is currently blocked by the rulesets API rework in v68.
 type orgTeam struct {
 	github.Team
 	NotificationSetting string `json:"notification_setting"`
@@ -47,7 +50,12 @@ func ImportOrg(org string) (*TeamsConfig, *MembersConfig, error) {
 		return nil, nil, err
 	}
 
-	return buildTeamsConfig(ghTeams), buildMembersConfig(memberLogins, adminLogins, rosters), nil
+	teamsConfig, err := buildTeamsConfig(ghTeams)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return teamsConfig, buildMembersConfig(memberLogins, adminLogins, rosters), nil
 }
 
 func listAllTeams(ctx context.Context, org string) ([]*orgTeam, error) {
@@ -81,7 +89,7 @@ func rejectNestedTeams(teams []*orgTeam) error {
 	return nil
 }
 
-func buildTeamsConfig(ghTeams []*orgTeam) *TeamsConfig {
+func buildTeamsConfig(ghTeams []*orgTeam) (*TeamsConfig, error) {
 	teams := make([]Team, 0, len(ghTeams))
 	for _, t := range ghTeams {
 		team := Team{Name: t.GetName()}
@@ -102,14 +110,22 @@ func buildTeamsConfig(ghTeams []*orgTeam) *TeamsConfig {
 			team.Visibility = TeamVisibilityVisible
 		}
 
-		notifications := t.NotificationSetting != "notifications_disabled"
-		team.Notifications = &notifications
+		switch t.NotificationSetting {
+		case NotificationsEnabled:
+			notifications := true
+			team.Notifications = &notifications
+		case NotificationsDisabled:
+			notifications := false
+			team.Notifications = &notifications
+		default:
+			return nil, fmt.Errorf("team %q has unexpected notification_setting %q: expected %q or %q", t.GetName(), t.NotificationSetting, NotificationsEnabled, NotificationsDisabled)
+		}
 
 		teams = append(teams, team)
 	}
 
 	sort.Slice(teams, func(i, j int) bool { return teams[i].Name < teams[j].Name })
-	return &TeamsConfig{Teams: teams}
+	return &TeamsConfig{Teams: teams}, nil
 }
 
 func listMemberLogins(ctx context.Context, org, role string) ([]string, error) {
@@ -205,7 +221,7 @@ func buildMembersConfig(memberLogins, adminLogins []string, rosters []teamRoster
 
 func WriteOrgConfig(org string, teams *TeamsConfig, members *MembersConfig) error {
 	basePath := filepath.Join("./configs", org, "organisation")
-	if err := os.MkdirAll(basePath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(basePath, 0o755); err != nil {
 		return fmt.Errorf("failed to create org config directory: %w", err)
 	}
 
@@ -213,7 +229,7 @@ func WriteOrgConfig(org string, teams *TeamsConfig, members *MembersConfig) erro
 	if err != nil {
 		return fmt.Errorf("failed to marshal teams: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(basePath, "teams.yaml"), teamsData, os.ModePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(basePath, "teams.yaml"), teamsData, 0o644); err != nil {
 		return fmt.Errorf("failed to write teams.yaml: %w", err)
 	}
 
@@ -221,7 +237,7 @@ func WriteOrgConfig(org string, teams *TeamsConfig, members *MembersConfig) erro
 	if err != nil {
 		return fmt.Errorf("failed to marshal members: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(basePath, "members.yaml"), membersData, os.ModePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(basePath, "members.yaml"), membersData, 0o644); err != nil {
 		return fmt.Errorf("failed to write members.yaml: %w", err)
 	}
 

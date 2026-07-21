@@ -52,7 +52,7 @@ func TestBuildTeamsConfig(t *testing.T) {
 				Description: github.String("last alphabetically"),
 				Privacy:     github.String("closed"),
 			},
-			NotificationSetting: "notifications_disabled",
+			NotificationSetting: NotificationsDisabled,
 		},
 		{
 			Team: github.Team{
@@ -60,17 +60,19 @@ func TestBuildTeamsConfig(t *testing.T) {
 				Slug:    github.String("secret-club"),
 				Privacy: github.String("secret"),
 			},
-			NotificationSetting: "notifications_enabled",
+			NotificationSetting: NotificationsEnabled,
 		},
 		{
 			Team: github.Team{
 				Name: github.String("bare"),
 			},
+			NotificationSetting: NotificationsEnabled,
 		},
 	}
 
-	config := buildTeamsConfig(ghTeams)
+	config, err := buildTeamsConfig(ghTeams)
 
+	assert.NoError(t, err)
 	assert.Len(t, config.Teams, 3)
 
 	assert.Equal(t, "Z_Team", config.Teams[0].Name)
@@ -88,6 +90,30 @@ func TestBuildTeamsConfig(t *testing.T) {
 	assert.Equal(t, "secret-club", config.Teams[2].Name)
 	assert.Equal(t, TeamVisibilitySecret, config.Teams[2].Visibility)
 	assert.True(t, *config.Teams[2].Notifications)
+}
+
+func TestBuildTeamsConfigRejectsUnknownNotificationSetting(t *testing.T) {
+	tests := []struct {
+		name    string
+		setting string
+	}{
+		{name: "absent from the API response", setting: ""},
+		{name: "value we do not model", setting: "notifications_something_new"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ghTeams := []*orgTeam{
+				{Team: github.Team{Name: github.String("platform")}, NotificationSetting: tt.setting},
+			}
+
+			config, err := buildTeamsConfig(ghTeams)
+
+			assert.Nil(t, config)
+			assert.EqualError(t, err, `team "platform" has unexpected notification_setting `+
+				`"`+tt.setting+`": expected "notifications_enabled" or "notifications_disabled"`)
+		})
+	}
 }
 
 func TestBuildMembersConfig(t *testing.T) {
