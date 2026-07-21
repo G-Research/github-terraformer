@@ -8,6 +8,10 @@
         "name": {
           "type": "string"
         },
+        "slug": {
+          "type": "string",
+          "description": "GitHub-generated team slug captured by the importer and used as the Terraform import ID; not meant to be set or edited by hand"
+        },
         "description": {
           "type": "string"
         },

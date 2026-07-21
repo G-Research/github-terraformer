@@ -31,6 +31,9 @@ const (
 	TeamRoleMember     = "member"
 	TeamRoleMaintainer = "maintainer"
 
+	NotificationsEnabled  = "notifications_enabled"
+	NotificationsDisabled = "notifications_disabled"
+
 	// Permission levels
 	PermissionRead     = "read"
 	PermissionWrite    = "write"

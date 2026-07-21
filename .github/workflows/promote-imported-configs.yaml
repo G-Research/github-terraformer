@@ -88,9 +88,22 @@ jobs:
       - name: Promote Sanitized Files
         working-directory: feature/github-repo-provisioning/gcss_config
         run: |
+          org_src="importer_tmp_dir/organisation"
+          org_dst="organisation"
+
+          if [[ -d "$org_src" ]]; then
+            echo "Promoting organisation configs from $org_src to $org_dst"
+            mkdir -p "$org_dst"
+
+            find "$org_src" -maxdepth 1 -type f -name '*.yaml' -print -exec mv {} "$org_dst" \;
+            git add "$org_src" "$org_dst"
+          else
+            echo "Source dir $org_src not found, skipping"
+          fi
+
           src="importer_tmp_dir"
           dst="repos"
-        
+
           if [[ -d "$src" ]]; then
             echo "Promoting configs from $src to $dst"
             mkdir -p "$dst"

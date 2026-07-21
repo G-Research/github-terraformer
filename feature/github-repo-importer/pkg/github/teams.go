@@ -8,6 +8,7 @@ type TeamsConfig struct {
 
 type Team struct {
 	Name          string  `yaml:"name" jsonschema:"required"`
+	Slug          *string `yaml:"slug,omitempty" jsonschema:"description=GitHub-generated team slug captured by the importer and used as the Terraform import ID; not meant to be set or edited by hand"`
 	Description   *string `yaml:"description,omitempty"`
 	Visibility    string  `yaml:"visibility,omitempty" jsonschema:"enum=visible,enum=secret"`
 	Notifications *bool   `yaml:"notifications,omitempty"`

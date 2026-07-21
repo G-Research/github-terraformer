@@ -6,6 +6,13 @@ import-repo repoName:
   mkdir -p "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/"
   cp "configs/$owner/$repo.yaml" "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/"
 
+import-org org:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  go run main.go import-org --org {{org}}
+  mkdir -p "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/organisation/"
+  cp configs/{{org}}/organisation/*.yaml "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/organisation/"
+
 import-repos:
   go run main.go bulk-import -c import-config.yaml
   mkdir -p "../../feature/github-repo-provisioning/gcss_config/importer_tmp_dir/"
