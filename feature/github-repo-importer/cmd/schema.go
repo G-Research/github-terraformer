@@ -129,6 +129,13 @@ func BuildRepositoryConfigSchema() *jsonschema.Schema {
 					prop.Deprecated = true
 				}
 			}
+			// GitHub removed the legacy repository "Downloads" feature (2012) and no
+			// longer allows has_downloads to be enabled; the API silently keeps it
+			// false. Pin the config to false so a stray `true` fails validation
+			// instead of producing perpetual drift.
+			if prop, exists := repoDef.Properties.Get("has_downloads"); exists {
+				prop.Const = false
+			}
 		}
 
 		pagesDef, ok := schema.Definitions["Pages"]
