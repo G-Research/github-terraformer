@@ -314,7 +314,8 @@
     "RepositoryWithExpansionConfig": {
       "properties": {
         "description": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 350
         },
         "visibility": {
           "type": "string",
@@ -339,7 +340,8 @@
           "type": "boolean"
         },
         "has_downloads": {
-          "type": "boolean"
+          "type": "boolean",
+          "const": false
         },
         "allow_merge_commit": {
           "type": "boolean"

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -57,6 +58,32 @@ func TestValidate_SchemaViolationCitesFileAndPath(t *testing.T) {
 	assert.Contains(t, out, filepath.Join(dir, "repos", "bad.yaml"))
 	assert.Contains(t, out, "/visibility")
 	assert.Contains(t, out, "/has_issues")
+}
+
+func TestValidate_DescriptionOver350Rejected(t *testing.T) {
+	long := strings.Repeat("x", 351)
+	dir := newConfigDir(t, map[string]string{
+		"bad.yaml": "default_branch: main\nvisibility: public\ndescription: " + long + "\n",
+	})
+
+	out, err := runValidateCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, "/description")
+}
+
+func TestValidate_HasDownloadsTrueRejected(t *testing.T) {
+	dir := newConfigDir(t, map[string]string{
+		"bad.yaml":  "default_branch: main\nvisibility: public\nhas_downloads: true\n",
+		"good.yaml": "default_branch: main\nvisibility: public\nhas_downloads: false\n",
+	})
+
+	out, err := runValidateCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, "/has_downloads")
+	assert.Contains(t, out, filepath.Join(dir, "repos", "bad.yaml"))
+	assert.NotContains(t, out, filepath.Join("repos", "good.yaml")+":")
 }
 
 func TestValidate_YmlExtensionIsValidated(t *testing.T) {

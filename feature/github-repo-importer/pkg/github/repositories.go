@@ -3,7 +3,7 @@ package github
 type Repository struct {
 	Name                       string                `yaml:"-"`
 	Owner                      string                `yaml:"-"`
-	Description                *string               `yaml:"description,omitempty"`
+	Description                *string               `yaml:"description,omitempty" jsonschema:"maxLength=350"`
 	Visibility                 string                `yaml:"visibility,omitempty" jsonschema:"enum=public,enum=private"`
 	HomepageURL                *string               `yaml:"homepage_url,omitempty"`
 	DefaultBranch              string                `yaml:"default_branch,omitempty" jsonschema:"required"`
