@@ -176,23 +176,32 @@ func validateMembersFiles(cmd *cobra.Command, paths []string, fallbackSchema str
 			loadedAll = false
 			continue
 		}
+
+		// Structural rules are per file: checking them on the merged set would hide
+		// a duplicate that the other file happens to override.
+		if teamsOK {
+			for _, e := range cfg.ValidateEntries(teamNames) {
+				*failures = append(*failures, fmt.Sprintf("%s: %v", path, e))
+			}
+		}
+
 		merged = mergeMembers(merged, cfg)
 	}
 
+	if !teamsOK {
+		cmd.PrintErrln("WARNING: skipping member team-reference checks until the teams config loads")
+	}
 	if !loadedAll {
 		return
 	}
 
-	if !teamsOK {
-		cmd.PrintErrln("WARNING: skipping member checks until the teams config loads")
-		return
-	}
-
+	// Protected owners are genuinely cross-file: an owner may be declared in either
+	// the promoted or the staged file, so this runs on the effective member set.
 	label := "organisation members config"
 	if len(paths) > 0 {
 		label = strings.Join(paths, " + ")
 	}
-	for _, e := range merged.Validate(teamNames, protectedOwners) {
+	for _, e := range merged.ValidateProtectedOwners(protectedOwners) {
 		*failures = append(*failures, fmt.Sprintf("%s: %v", label, e))
 	}
 }

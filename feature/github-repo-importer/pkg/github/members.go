@@ -18,6 +18,14 @@ type TeamMembership struct {
 }
 
 func (c *MembersConfig) Validate(knownTeams []string, protectedOwners []string) []error {
+	errs := c.ValidateEntries(knownTeams)
+	return append(errs, c.ValidateProtectedOwners(protectedOwners)...)
+}
+
+// ValidateEntries checks the rules that hold within a single members file. Run it
+// per file: these are structural, and evaluating them on a merged set would hide a
+// duplicate that another file happens to override.
+func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 	var errs []error
 
 	teamSet := make(map[string]struct{}, len(knownTeams))
@@ -25,12 +33,12 @@ func (c *MembersConfig) Validate(knownTeams []string, protectedOwners []string) 
 		teamSet[t] = struct{}{}
 	}
 
-	seen := make(map[string]Member, len(c.Members))
+	seen := make(map[string]struct{}, len(c.Members))
 	for _, member := range c.Members {
 		if _, exists := seen[member.Username]; exists {
 			errs = append(errs, fmt.Errorf("member %q is defined more than once in members.yaml", member.Username))
 		}
-		seen[member.Username] = member
+		seen[member.Username] = struct{}{}
 
 		memberTeams := make(map[string]struct{}, len(member.Teams))
 		for _, team := range member.Teams {
@@ -45,8 +53,22 @@ func (c *MembersConfig) Validate(knownTeams []string, protectedOwners []string) 
 		}
 	}
 
+	return errs
+}
+
+// ValidateProtectedOwners checks that every protected owner is present and still an
+// owner. Run it on the effective (merged) member set: an owner may be declared in
+// either the promoted or the staged file.
+func (c *MembersConfig) ValidateProtectedOwners(protectedOwners []string) []error {
+	var errs []error
+
+	byUsername := make(map[string]Member, len(c.Members))
+	for _, member := range c.Members {
+		byUsername[member.Username] = member
+	}
+
 	for _, owner := range protectedOwners {
-		member, present := seen[owner]
+		member, present := byUsername[owner]
 		if !present {
 			errs = append(errs, fmt.Errorf("protected owner %q is missing from members.yaml: protected identities cannot be removed", owner))
 			continue

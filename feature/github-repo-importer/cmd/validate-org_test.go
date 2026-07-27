@@ -108,6 +108,52 @@ func TestValidateOrg_MemberReferencesUnknownTeam(t *testing.T) {
 	assert.Contains(t, out, `references team "ghost" which is not defined in teams.yaml`)
 }
 
+func TestValidateOrg_DuplicateUsernameRejected(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n  - username: alice\n    role: member\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, `member "alice" is defined more than once`)
+}
+
+// Terraform keys the staged members by username on their own, so a duplicate in
+// the staged file is an error there regardless of what the promoted file declares.
+// Checking duplicates on the merged set would let the override hide it.
+func TestValidateOrg_DuplicateInStagedFileNotHiddenByPromotedOverride(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n",
+	})
+	stagedDir := filepath.Join(dir, "importer_tmp_dir", "organisation")
+	require.NoError(t, os.MkdirAll(stagedDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(stagedDir, "members.yaml"),
+		[]byte("members:\n  - username: alice\n    role: owner\n  - username: alice\n    role: member\n"), 0o644))
+
+	out, err := runValidateOrgCmd(t, dir, "alice")
+
+	require.Error(t, err)
+	assert.Contains(t, out, `member "alice" is defined more than once`)
+	assert.Contains(t, out, filepath.Join("importer_tmp_dir", "organisation", "members.yaml"),
+		"the duplicate should be attributed to the staged file that contains it")
+}
+
+// The protected-owner rule does not depend on teams, so a teams file that fails to
+// parse must not hide an owner being removed.
+func TestValidateOrg_BrokenTeamsFileStillEnforcesProtectedOwners(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"teams.yaml":   "teams: [oops\n",
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "gcss-bot")
+
+	require.Error(t, err)
+	assert.Contains(t, out, "invalid YAML")
+	assert.Contains(t, out, `protected owner "gcss-bot" is missing from members.yaml`)
+}
+
 func TestValidateOrg_ProtectedOwnerRemovedRejected(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml":   validTeamsYAML,
