@@ -21,6 +21,11 @@ on:
         description: "Workspace-relative path to the fallback JSON schema for repos/*.yaml validation, used when the config repo provides no override (e.g. 'gcss_config/.schemas/my.schema.json'). When omitted, the schema bundled with github-terraformer is used."
         required: false
         default: ""
+      protected_owners:
+        type: string
+        description: "Comma-separated org logins that must stay owners in organisation/members.yaml (never removed or demoted). Sourced from deployment config (e.g. a repo variable), not the config repo."
+        required: false
+        default: ""
     secrets:
       app_private_key:
         required: true
@@ -55,6 +60,12 @@ jobs:
         with:
           config-path: gcss_config
           fallback-schema-path: ${{ inputs.fallback_schema_path }}
+
+      - name: Validate organisation/*.yaml
+        uses: ./.github/actions/validate-org-configs
+        with:
+          config-path: gcss_config
+          protected-owners: ${{ inputs.protected_owners }}
 
   terraform-plan:
     needs: validate

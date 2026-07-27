@@ -1,0 +1,43 @@
+name: "Validate organisation configuration files"
+description: "Validates organisation/teams.yaml and organisation/members.yaml against schema and cross-file rules, failing fast before Terraform runs"
+inputs:
+  config-path:
+    description: "Path to the configuration repository containing organisation/*.yaml files to validate"
+    required: true
+  protected-owners:
+    description: "Comma-separated org logins that must stay owners (never removed or demoted). Sourced from deployment config, not the config repo."
+    required: false
+    default: ""
+  fallback-schema-teams:
+    description: "Workspace-relative path to the fallback teams schema. Defaults to the schema bundled with github-terraformer."
+    required: false
+    default: ".schemas/teams-config.schema.json"
+  fallback-schema-members:
+    description: "Workspace-relative path to the fallback members schema. Defaults to the schema bundled with github-terraformer."
+    required: false
+    default: ".schemas/members-config.schema.json"
+  importer-path:
+    description: "Path to the github-repo-importer Go module"
+    required: false
+    default: "feature/github-repo-importer"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      with:
+        go-version-file: ${{ inputs.importer-path }}/go.mod
+
+    - name: Validate organisation/*.yaml against schema and rules
+      shell: bash
+      working-directory: ${{ inputs.importer-path }}
+      env:
+        FALLBACK_TEAMS: ${{ format('{0}/{1}', github.workspace, inputs.fallback-schema-teams != '' && inputs.fallback-schema-teams || '.schemas/teams-config.schema.json') }}
+        FALLBACK_MEMBERS: ${{ format('{0}/{1}', github.workspace, inputs.fallback-schema-members != '' && inputs.fallback-schema-members || '.schemas/members-config.schema.json') }}
+        PROTECTED_OWNERS: ${{ inputs.protected-owners }}
+      run: |
+        go run . validate-org \
+          --config-dir "${{ github.workspace }}/${{ inputs.config-path }}" \
+          --protected-owners "$PROTECTED_OWNERS" \
+          --fallback-schema-teams "$FALLBACK_TEAMS" \
+          --fallback-schema-members "$FALLBACK_MEMBERS"
