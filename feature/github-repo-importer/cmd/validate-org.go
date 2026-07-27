@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
@@ -44,7 +45,11 @@ express:
 
 Files may be absent. An absent members.yaml is treated as an empty member list,
 matching how Terraform reads it, so protected owners are enforced even when the
-file is deleted outright.`,
+file is deleted outright.
+
+Unlike repository config, the schema is never taken from the config repository:
+both the schema and the protected-owner list are deployment config, so a pull
+request cannot weaken the rules it is validated against.`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runValidateOrg(cmd, validateOrgConfigDir, validateOrgProtectedOwners, validateOrgFallbackTeams, validateOrgFallbackMembers)
@@ -56,8 +61,8 @@ func init() {
 
 	validateOrgCmd.Flags().StringVar(&validateOrgConfigDir, "config-dir", "", "Path to the config repository containing the organisation config")
 	validateOrgCmd.Flags().StringVar(&validateOrgProtectedOwners, "protected-owners", "", "Comma-separated org logins that must stay owners (never removed or demoted)")
-	validateOrgCmd.Flags().StringVar(&validateOrgFallbackTeams, "fallback-schema-teams", "", "Fallback teams schema path used when no built-in schema is wanted")
-	validateOrgCmd.Flags().StringVar(&validateOrgFallbackMembers, "fallback-schema-members", "", "Fallback members schema path used when no built-in schema is wanted")
+	validateOrgCmd.Flags().StringVar(&validateOrgFallbackTeams, "fallback-schema-teams", "", "Path to the teams schema to validate against; defaults to the schema built into this binary")
+	validateOrgCmd.Flags().StringVar(&validateOrgFallbackMembers, "fallback-schema-members", "", "Path to the members schema to validate against; defaults to the schema built into this binary")
 	_ = validateOrgCmd.MarkFlagRequired("config-dir")
 }
 
@@ -71,55 +76,21 @@ func runValidateOrg(cmd *cobra.Command, configDir, protectedOwnersCSV, fallbackT
 		filepath.Join(configDir, orgConfigDir, "members.yaml"),
 	)
 
+	protectedOwners := splitCSV(protectedOwnersCSV)
+	if len(protectedOwners) > 0 {
+		cmd.Printf("Enforcing %d protected owner(s): %s\n", len(protectedOwners), strings.Join(protectedOwners, ", "))
+	} else {
+		cmd.PrintErrln("WARNING: no protected owners configured, owner removal and demotion are not enforced")
+	}
+
 	if len(teamsFiles) == 0 && len(membersFiles) == 0 {
-		cmd.Println("No organisation teams.yaml or members.yaml found, checking protected owners only")
+		cmd.Println("No organisation teams.yaml or members.yaml found, validating as an empty organisation config")
 	}
 
 	var failures []string
-	var teamNames []string
 
-	if len(teamsFiles) > 0 {
-		schema, err := compileSchema("mem://teams-config.schema.json", fallbackTeams, MarshalTeamsConfigSchema)
-		if err != nil {
-			return err
-		}
-		for _, path := range teamsFiles {
-			failures = append(failures, validateFile(path, schema)...)
-
-			var cfg github.TeamsConfig
-			if err := unmarshalYAMLFile(path, &cfg); err != nil {
-				failures = append(failures, fmt.Sprintf("%s: %v", path, err))
-				continue
-			}
-			for _, e := range cfg.Validate() {
-				failures = append(failures, fmt.Sprintf("%s: %v", path, e))
-			}
-			for _, t := range cfg.Teams {
-				teamNames = append(teamNames, t.Name)
-			}
-		}
-	}
-
-	if len(membersFiles) > 0 {
-		schema, err := compileSchema("mem://members-config.schema.json", fallbackMembers, MarshalMembersConfigSchema)
-		if err != nil {
-			return err
-		}
-		for _, path := range membersFiles {
-			failures = append(failures, validateFile(path, schema)...)
-		}
-	}
-
-	merged, loadErrs := loadMergedMembers(membersFiles)
-	failures = append(failures, loadErrs...)
-
-	label := "organisation members config"
-	if len(membersFiles) > 0 {
-		label = strings.Join(membersFiles, " + ")
-	}
-	for _, e := range merged.Validate(teamNames, splitCSV(protectedOwnersCSV)) {
-		failures = append(failures, fmt.Sprintf("%s: %v", label, e))
-	}
+	teamNames, teamsOK := validateTeamsFiles(cmd, teamsFiles, fallbackTeams, &failures)
+	validateMembersFiles(cmd, membersFiles, fallbackMembers, teamNames, teamsOK, protectedOwners, &failures)
 
 	if len(failures) > 0 {
 		cmd.PrintErrln("\nOrganisation config validation errors were encountered:")
@@ -133,29 +104,102 @@ func runValidateOrg(cmd *cobra.Command, configDir, protectedOwnersCSV, fallbackT
 	return nil
 }
 
-// loadMergedMembers merges the given members files the same way the Terraform
-// config does: later files win per username. With a single file the entries are
-// returned as-is, so duplicates within that file are still reported.
-func loadMergedMembers(paths []string) (github.MembersConfig, []string) {
-	var failures []string
-	var configs []github.MembersConfig
+// validateTeamsFiles returns the team names declared across the given files and
+// whether every file loaded. A failed load leaves teamNames incomplete, which
+// would turn every member team reference into a bogus error, so callers use the
+// second return value to suppress that check.
+func validateTeamsFiles(cmd *cobra.Command, paths []string, fallbackSchema string, failures *[]string) ([]string, bool) {
+	if len(paths) == 0 {
+		return nil, true
+	}
 
+	schema, err := compileSchema("mem://teams-config.schema.json", fallbackSchema, MarshalTeamsConfigSchema)
+	if err != nil {
+		*failures = append(*failures, fmt.Sprintf("teams schema: %v", err))
+		return nil, false
+	}
+
+	var teamNames []string
+	loadedAll := true
 	for _, path := range paths {
-		var cfg github.MembersConfig
-		if err := unmarshalYAMLFile(path, &cfg); err != nil {
-			failures = append(failures, fmt.Sprintf("%s: %v", path, err))
+		data, instance, loadErr := loadYAMLDocument(path)
+		if loadErr != nil {
+			*failures = append(*failures, fmt.Sprintf("%s: %v", path, loadErr))
+			loadedAll = false
 			continue
 		}
-		configs = append(configs, cfg)
+		*failures = append(*failures, validateInstance(path, instance, schema)...)
+
+		var cfg github.TeamsConfig
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			*failures = append(*failures, fmt.Sprintf("%s: does not match the teams config shape: %v", path, err))
+			loadedAll = false
+			continue
+		}
+		for _, e := range cfg.Validate() {
+			*failures = append(*failures, fmt.Sprintf("%s: %v", path, e))
+		}
+		for _, t := range cfg.Teams {
+			teamNames = append(teamNames, t.Name)
+		}
+	}
+	return teamNames, loadedAll
+}
+
+func validateMembersFiles(cmd *cobra.Command, paths []string, fallbackSchema string, teamNames []string, teamsOK bool, protectedOwners []string, failures *[]string) {
+	var schema *jsonschema.Schema
+	if len(paths) > 0 {
+		compiled, err := compileSchema("mem://members-config.schema.json", fallbackSchema, MarshalMembersConfigSchema)
+		if err != nil {
+			*failures = append(*failures, fmt.Sprintf("members schema: %v", err))
+		} else {
+			schema = compiled
+		}
 	}
 
 	merged := github.MembersConfig{}
-	for _, cfg := range configs {
+	loadedAll := true
+	for _, path := range paths {
+		data, instance, loadErr := loadYAMLDocument(path)
+		if loadErr != nil {
+			*failures = append(*failures, fmt.Sprintf("%s: %v", path, loadErr))
+			loadedAll = false
+			continue
+		}
+		if schema != nil {
+			*failures = append(*failures, validateInstance(path, instance, schema)...)
+		}
+
+		var cfg github.MembersConfig
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			*failures = append(*failures, fmt.Sprintf("%s: does not match the members config shape: %v", path, err))
+			loadedAll = false
+			continue
+		}
 		merged = mergeMembers(merged, cfg)
 	}
-	return merged, failures
+
+	if !loadedAll {
+		return
+	}
+
+	if !teamsOK {
+		cmd.PrintErrln("WARNING: skipping member checks until the teams config loads")
+		return
+	}
+
+	label := "organisation members config"
+	if len(paths) > 0 {
+		label = strings.Join(paths, " + ")
+	}
+	for _, e := range merged.Validate(teamNames, protectedOwners) {
+		*failures = append(*failures, fmt.Sprintf("%s: %v", label, e))
+	}
 }
 
+// mergeMembers merges two member sets the way the Terraform config does: override
+// wins per username. When only one side has entries it is returned as-is, so
+// duplicates within a single file are still reported.
 func mergeMembers(base, override github.MembersConfig) github.MembersConfig {
 	if len(base.Members) == 0 {
 		return override
@@ -187,17 +231,6 @@ func existingFiles(paths ...string) []string {
 		}
 	}
 	return out
-}
-
-func unmarshalYAMLFile(path string, out any) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-	if err := yaml.Unmarshal(data, out); err != nil {
-		return fmt.Errorf("invalid YAML: %w", err)
-	}
-	return nil
 }
 
 func splitCSV(s string) []string {

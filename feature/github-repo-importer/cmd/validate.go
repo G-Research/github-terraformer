@@ -205,25 +205,40 @@ func resolveOrgSchema(cmd *cobra.Command, configDir string) (string, bool) {
 	return candidate, true
 }
 
-// validateFile parses a single YAML file and validates it against the schema,
-// returning one message per violation, each citing the file and JSON path.
-func validateFile(path string, schema *jsonschema.Schema) []string {
+// loadYAMLDocument reads and decodes path into a JSON-compatible value ready for
+// schema validation. The raw bytes are returned too, so a caller that also needs a
+// typed struct can decode from them instead of reading and parsing the file twice.
+func loadYAMLDocument(path string) ([]byte, any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return []string{fmt.Sprintf("%s: failed to read file: %v", path, err)}
+		return nil, nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	var raw any
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return []string{fmt.Sprintf("%s: invalid YAML: %v", path, err)}
+		return nil, nil, fmt.Errorf("invalid YAML: %w", err)
 	}
 
 	instance, err := toJSONValue(raw)
 	if err != nil {
+		return nil, nil, err
+	}
+	return data, instance, nil
+}
+
+// validateFile parses a single YAML file and validates it against the schema,
+// returning one message per violation, each citing the file and JSON path.
+func validateFile(path string, schema *jsonschema.Schema) []string {
+	_, instance, err := loadYAMLDocument(path)
+	if err != nil {
 		return []string{fmt.Sprintf("%s: %v", path, err)}
 	}
+	return validateInstance(path, instance, schema)
+}
 
-	err = schema.Validate(instance)
+// validateInstance validates an already-decoded document against the schema.
+func validateInstance(path string, instance any, schema *jsonschema.Schema) []string {
+	err := schema.Validate(instance)
 	if err == nil {
 		return nil
 	}

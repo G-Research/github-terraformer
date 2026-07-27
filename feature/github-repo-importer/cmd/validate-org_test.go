@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -26,12 +27,36 @@ func newOrgConfigDir(t *testing.T, files map[string]string) string {
 
 func runValidateOrgCmd(t *testing.T, configDir, protectedOwners string) (string, error) {
 	t.Helper()
+	return runValidateOrgCmdWithSchemas(t, configDir, protectedOwners, "", "")
+}
+
+func runValidateOrgCmdWithSchemas(t *testing.T, configDir, protectedOwners, fallbackTeams, fallbackMembers string) (string, error) {
+	t.Helper()
 	var out bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	err := runValidateOrg(cmd, configDir, protectedOwners, "", "")
+	err := runValidateOrg(cmd, configDir, protectedOwners, fallbackTeams, fallbackMembers)
 	return out.String(), err
+}
+
+// writeGeneratedSchemas writes the generated schemas to disk so tests can exercise
+// the file-based path the composite action uses in CI, not just the built-in one.
+func writeGeneratedSchemas(t *testing.T) (teamsPath, membersPath string) {
+	t.Helper()
+	dir := t.TempDir()
+
+	teamsRaw, err := MarshalTeamsConfigSchema()
+	require.NoError(t, err)
+	teamsPath = filepath.Join(dir, "teams-config.schema.json")
+	require.NoError(t, os.WriteFile(teamsPath, teamsRaw, 0o644))
+
+	membersRaw, err := MarshalMembersConfigSchema()
+	require.NoError(t, err)
+	membersPath = filepath.Join(dir, "members-config.schema.json")
+	require.NoError(t, os.WriteFile(membersPath, membersRaw, 0o644))
+
+	return teamsPath, membersPath
 }
 
 const validTeamsYAML = "teams:\n  - name: platform\n    visibility: visible\n  - name: security-core\n    visibility: secret\n"
@@ -117,7 +142,62 @@ func TestValidateOrg_ProtectedOwnersCSVParsed(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, out, `protected owner "bob" is missing from members.yaml`)
-	assert.NotContains(t, out, `"alice"`)
+	assert.NotContains(t, out, "protected owner \"alice\"", "alice satisfies the guard and must not be reported")
+	assert.Contains(t, out, "Enforcing 2 protected owner(s)")
+}
+
+func TestValidateOrg_WarnsWhenNoProtectedOwnersConfigured(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "")
+
+	assert.NoError(t, err)
+	assert.Contains(t, out, "WARNING: no protected owners configured")
+}
+
+func TestValidateOrg_FileBasedSchemasAreUsed(t *testing.T) {
+	teamsSchema, membersSchema := writeGeneratedSchemas(t)
+	dir := newOrgConfigDir(t, map[string]string{
+		"teams.yaml":   "teams:\n  - name: platform\n    visibility: banana\n",
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n",
+	})
+
+	out, err := runValidateOrgCmdWithSchemas(t, dir, "alice", teamsSchema, membersSchema)
+
+	require.Error(t, err)
+	assert.Contains(t, out, "/teams/0/visibility")
+}
+
+func TestValidateOrg_EmptyNamesRejected(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"teams.yaml":   "teams:\n  - name: \"\"\n    visibility: visible\n",
+		"members.yaml": "members:\n  - username: \"\"\n    role: owner\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, "/teams/0/name")
+	assert.Contains(t, out, "/members/0/username")
+}
+
+// A teams file that fails to parse leaves the known-team set empty, which would
+// otherwise turn every member team reference into a bogus error and bury the
+// real cause.
+func TestValidateOrg_BrokenTeamsFileDoesNotCascade(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"teams.yaml":   "teams: [oops\n",
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n    teams:\n      - name: platform\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, "invalid YAML")
+	assert.NotContains(t, out, `references team "platform"`, "team references must not be checked against an unparsed teams file")
+	assert.Equal(t, 1, strings.Count(out, "invalid YAML"), "the parse failure should be reported once, not once per validation layer")
 }
 
 func TestValidateOrg_NoFilesAndNoProtectedOwnersPasses(t *testing.T) {

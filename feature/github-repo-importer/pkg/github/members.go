@@ -7,13 +7,13 @@ type MembersConfig struct {
 }
 
 type Member struct {
-	Username string           `yaml:"username" jsonschema:"required"`
+	Username string           `yaml:"username" jsonschema:"required,minLength=1"`
 	Role     string           `yaml:"role,omitempty" jsonschema:"enum=owner,enum=member"`
 	Teams    []TeamMembership `yaml:"teams,omitempty"`
 }
 
 type TeamMembership struct {
-	Name string `yaml:"name" jsonschema:"required"`
+	Name string `yaml:"name" jsonschema:"required,minLength=1"`
 	Role string `yaml:"role,omitempty" jsonschema:"enum=member,enum=maintainer"`
 }
 
