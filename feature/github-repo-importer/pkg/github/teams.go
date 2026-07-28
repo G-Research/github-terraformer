@@ -20,8 +20,6 @@ type Team struct {
 func (c *TeamsConfig) Validate() []error {
 	var errs []error
 
-	// Compared case-insensitively: GitHub derives a team's slug by lowercasing its
-	// name, so names differing only in case collide on the same team.
 	seen := make(map[string]string, len(c.Teams))
 	for _, team := range c.Teams {
 		key := strings.ToLower(team.Name)

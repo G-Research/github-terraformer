@@ -141,8 +141,7 @@ func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride, fallbac
 }
 
 // compileSchema compiles a JSON schema from schemaPath, or from the built-in
-// marshaller when schemaPath is empty. memURL is the in-memory resource name and
-// only needs to be unique per schema.
+// marshaller when schemaPath is empty.
 func compileSchema(memURL, schemaPath string, builtin func() ([]byte, error)) (*jsonschema.Schema, error) {
 	var doc any
 	var err error
@@ -206,8 +205,7 @@ func resolveOrgSchema(cmd *cobra.Command, configDir string) (string, bool) {
 }
 
 // loadYAMLDocument reads and decodes path into a JSON-compatible value ready for
-// schema validation. The raw bytes are returned too, so a caller that also needs a
-// typed struct can decode from them instead of reading and parsing the file twice.
+// schema validation, returning the raw bytes alongside it.
 func loadYAMLDocument(path string) ([]byte, any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

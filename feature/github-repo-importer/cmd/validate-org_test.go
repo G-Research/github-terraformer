@@ -13,7 +13,7 @@ import (
 )
 
 // newOrgConfigDir creates a temporary config directory containing the given
-// organisation/*.yaml files (name -> content). A nil/absent entry is skipped.
+// organisation/*.yaml files (name -> content).
 func newOrgConfigDir(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -41,7 +41,7 @@ func runValidateOrgCmdWithSchemas(t *testing.T, configDir, protectedOwners, fall
 }
 
 // writeGeneratedSchemas writes the generated schemas to disk so tests can exercise
-// the file-based path the composite action uses in CI, not just the built-in one.
+// the file-based schema path.
 func writeGeneratedSchemas(t *testing.T) (teamsPath, membersPath string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -119,9 +119,6 @@ func TestValidateOrg_DuplicateUsernameRejected(t *testing.T) {
 	assert.Contains(t, out, `member "alice" is defined more than once`)
 }
 
-// Terraform keys the staged members by username on their own, so a duplicate in
-// the staged file is an error there regardless of what the promoted file declares.
-// Checking duplicates on the merged set would let the override hide it.
 func TestValidateOrg_DuplicateInStagedFileNotHiddenByPromotedOverride(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"members.yaml": "members:\n  - username: alice\n    role: owner\n",
@@ -139,8 +136,6 @@ func TestValidateOrg_DuplicateInStagedFileNotHiddenByPromotedOverride(t *testing
 		"the duplicate should be attributed to the staged file that contains it")
 }
 
-// The protected-owner rule does not depend on teams, so a teams file that fails to
-// parse must not hide an owner being removed.
 func TestValidateOrg_BrokenTeamsFileStillEnforcesProtectedOwners(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml":   "teams: [oops\n",
@@ -154,8 +149,6 @@ func TestValidateOrg_BrokenTeamsFileStillEnforcesProtectedOwners(t *testing.T) {
 	assert.Contains(t, out, `protected owner "gcss-bot" is missing from members.yaml`)
 }
 
-// GitHub logins are case-insensitive, so these are one account. Left unflagged,
-// Terraform keys them separately and two resources manage one org membership.
 func TestValidateOrg_UsernameCaseCollisionRejected(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"members.yaml": "members:\n  - username: alice\n    role: owner\n  - username: Alice\n    role: member\n",
@@ -167,7 +160,6 @@ func TestValidateOrg_UsernameCaseCollisionRejected(t *testing.T) {
 	assert.Contains(t, out, `member "Alice" collides with "alice"`)
 }
 
-// Team names differing only in case slugify to the same GitHub team.
 func TestValidateOrg_TeamNameCaseCollisionRejected(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml": "teams:\n  - name: platform\n    visibility: visible\n  - name: Platform\n    visibility: visible\n",
@@ -201,8 +193,6 @@ func TestValidateOrg_ProtectedOwnerDemotionCaughtRegardlessOfCase(t *testing.T) 
 	assert.Contains(t, out, `protected owner "gcss-bot" has role "member"`)
 }
 
-// Terraform resolves a member's team as an exact map key, so a case-differing
-// reference must stay an error rather than be folded into a match.
 func TestValidateOrg_TeamReferenceMustMatchCaseExactly(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml":   "teams:\n  - name: platform\n    visibility: visible\n",
@@ -244,7 +234,6 @@ func TestValidateOrg_ProtectedOwnersCSVParsed(t *testing.T) {
 		"members.yaml": "members:\n  - username: alice\n    role: owner\n",
 	})
 
-	// bob is protected but absent; alice is protected and present as owner.
 	out, err := runValidateOrgCmd(t, dir, " alice , bob ")
 
 	require.Error(t, err)
@@ -290,9 +279,6 @@ func TestValidateOrg_EmptyNamesRejected(t *testing.T) {
 	assert.Contains(t, out, "/members/0/username")
 }
 
-// A teams file that fails to parse leaves the known-team set empty, which would
-// otherwise turn every member team reference into a bogus error and bury the
-// real cause.
 func TestValidateOrg_BrokenTeamsFileDoesNotCascade(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml":   "teams: [oops\n",
@@ -316,8 +302,6 @@ func TestValidateOrg_NoFilesAndNoProtectedOwnersPasses(t *testing.T) {
 	assert.Contains(t, out, "ok -- organisation config")
 }
 
-// Terraform reads an absent members.yaml as an empty member list, so deleting
-// the file plans the same org-wide member wipe as emptying it. Both must fail.
 func TestValidateOrg_DeletedMembersFileStillEnforcesProtectedOwners(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml": validTeamsYAML,
@@ -341,8 +325,7 @@ func TestValidateOrg_EmptyMembersListEnforcesProtectedOwners(t *testing.T) {
 	assert.Contains(t, out, `protected owner "gcss-bot" is missing from members.yaml`)
 }
 
-// newStagedOrgConfigDir writes files to importer_tmp_dir/organisation/, where the
-// bootstrap importer stages output that Terraform merges into the applied set.
+// newStagedOrgConfigDir writes files to importer_tmp_dir/organisation/.
 func newStagedOrgConfigDir(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -379,8 +362,6 @@ func TestValidateOrg_StagedMembersCrossFileRulesEnforced(t *testing.T) {
 	assert.Contains(t, out, `protected owner "gcss-bot" is missing from members.yaml`)
 }
 
-// A staged member may legitimately reference a team that is already promoted, so
-// team names from both locations must be visible to the reference check.
 func TestValidateOrg_StagedMembersResolveAgainstPromotedTeams(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml": validTeamsYAML,
@@ -396,8 +377,6 @@ func TestValidateOrg_StagedMembersResolveAgainstPromotedTeams(t *testing.T) {
 	assert.Contains(t, out, "ok -- organisation config")
 }
 
-// Terraform merges promoted over staged per username; the protected-owner check
-// must see the merged result, not either file alone.
 func TestValidateOrg_PromotedMemberOverridesStaged(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"members.yaml": "members:\n  - username: alice\n    role: member\n",

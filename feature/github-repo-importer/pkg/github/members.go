@@ -25,9 +25,7 @@ func (c *MembersConfig) Validate(knownTeams []string, protectedOwners []string) 
 	return append(errs, c.ValidateProtectedOwners(protectedOwners)...)
 }
 
-// ValidateEntries checks the rules that hold within a single members file. Run it
-// per file: these are structural, and evaluating them on a merged set would hide a
-// duplicate that another file happens to override.
+// ValidateEntries checks the rules that hold within a single members file.
 func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 	var errs []error
 
@@ -38,8 +36,6 @@ func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 		teamsByFold[strings.ToLower(t)] = t
 	}
 
-	// Logins are compared case-insensitively: GitHub treats them that way, so two
-	// entries differing only in case are one account managed by two resources.
 	seen := make(map[string]string, len(c.Members))
 	for _, member := range c.Members {
 		key := strings.ToLower(member.Username)
@@ -61,8 +57,6 @@ func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 			}
 			memberTeams[teamKey] = struct{}{}
 
-			// Matched exactly: Terraform resolves a member's team by looking the name
-			// up as a map key, so a reference that differs in case fails at plan time.
 			if _, ok := teamSet[team.Name]; ok {
 				continue
 			}
@@ -77,9 +71,7 @@ func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 	return errs
 }
 
-// ValidateProtectedOwners checks that every protected owner is present and still an
-// owner. Run it on the effective (merged) member set: an owner may be declared in
-// either the promoted or the staged file.
+// ValidateProtectedOwners checks that every protected owner is present and still an owner.
 func (c *MembersConfig) ValidateProtectedOwners(protectedOwners []string) []error {
 	var errs []error
 

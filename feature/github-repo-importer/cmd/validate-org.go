@@ -13,9 +13,6 @@ import (
 	"github.com/gr-oss-devops/github-repo-importer/pkg/github"
 )
 
-// orgConfigDir holds the promoted organisation config; stagedOrgConfigDir holds
-// the importer's not-yet-promoted output. Terraform merges both, so both are
-// validated.
 const (
 	orgConfigDir       = "organisation"
 	stagedOrgConfigDir = "importer_tmp_dir/organisation"
@@ -105,9 +102,7 @@ func runValidateOrg(cmd *cobra.Command, configDir, protectedOwnersCSV, fallbackT
 }
 
 // validateTeamsFiles returns the team names declared across the given files and
-// whether every file loaded. A failed load leaves teamNames incomplete, which
-// would turn every member team reference into a bogus error, so callers use the
-// second return value to suppress that check.
+// whether every file loaded.
 func validateTeamsFiles(cmd *cobra.Command, paths []string, fallbackSchema string, failures *[]string) ([]string, bool) {
 	if len(paths) == 0 {
 		return nil, true
@@ -177,8 +172,6 @@ func validateMembersFiles(cmd *cobra.Command, paths []string, fallbackSchema str
 			continue
 		}
 
-		// Structural rules are per file: checking them on the merged set would hide
-		// a duplicate that the other file happens to override.
 		if teamsOK {
 			for _, e := range cfg.ValidateEntries(teamNames) {
 				*failures = append(*failures, fmt.Sprintf("%s: %v", path, e))
@@ -195,8 +188,6 @@ func validateMembersFiles(cmd *cobra.Command, paths []string, fallbackSchema str
 		return
 	}
 
-	// Protected owners are genuinely cross-file: an owner may be declared in either
-	// the promoted or the staged file, so this runs on the effective member set.
 	label := "organisation members config"
 	if len(paths) > 0 {
 		label = strings.Join(paths, " + ")
@@ -207,8 +198,7 @@ func validateMembersFiles(cmd *cobra.Command, paths []string, fallbackSchema str
 }
 
 // mergeMembers merges two member sets the way the Terraform config does: override
-// wins per username. When only one side has entries it is returned as-is, so
-// duplicates within a single file are still reported.
+// wins per username.
 func mergeMembers(base, override github.MembersConfig) github.MembersConfig {
 	if len(base.Members) == 0 {
 		return override
