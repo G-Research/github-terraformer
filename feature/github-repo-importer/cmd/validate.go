@@ -119,42 +119,43 @@ func globRepoConfigs(configDir string) ([]string, error) {
 //  3. fallbackSchema (--fallback-schema flag, e.g. github-terraformer's own .schemas/ file)
 //  4. built-in schema generated from the importer's Go structs
 func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride, fallbackSchema string) (*jsonschema.Schema, error) {
-	compiler := jsonschema.NewCompiler()
-
 	if schemaOverride == "" {
 		if candidate, ok := resolveOrgSchema(cmd, configDir); ok {
 			schemaOverride = candidate
 		}
 	}
 
-	const schemaURL = "mem://repository-config.schema.json"
-
-	var doc any
-	var err error
+	schemaPath := ""
 	switch {
 	case schemaOverride != "":
 		cmd.Printf("Using org schema override: %s\n", schemaOverride)
-		f, openErr := os.Open(schemaOverride)
-		if openErr != nil {
-			return nil, fmt.Errorf("open schema override %s: %w", schemaOverride, openErr)
-		}
-		defer func() { _ = f.Close() }()
-		if doc, err = jsonschema.UnmarshalJSON(f); err != nil {
-			return nil, fmt.Errorf("parse schema override %s: %w", schemaOverride, err)
-		}
+		schemaPath = schemaOverride
 	case fallbackSchema != "":
 		cmd.Printf("Using base schema: %s\n", fallbackSchema)
-		f, openErr := os.Open(fallbackSchema)
+		schemaPath = fallbackSchema
+	default:
+		cmd.Println("Using built-in schema")
+	}
+
+	return compileSchema("mem://repository-config.schema.json", schemaPath, MarshalRepositoryConfigSchema)
+}
+
+// compileSchema compiles a JSON schema from schemaPath, or from the built-in
+// marshaller when schemaPath is empty.
+func compileSchema(memURL, schemaPath string, builtin func() ([]byte, error)) (*jsonschema.Schema, error) {
+	var doc any
+	var err error
+	if schemaPath != "" {
+		f, openErr := os.Open(schemaPath)
 		if openErr != nil {
-			return nil, fmt.Errorf("open fallback schema %s: %w", fallbackSchema, openErr)
+			return nil, fmt.Errorf("open schema %s: %w", schemaPath, openErr)
 		}
 		defer func() { _ = f.Close() }()
 		if doc, err = jsonschema.UnmarshalJSON(f); err != nil {
-			return nil, fmt.Errorf("parse fallback schema %s: %w", fallbackSchema, err)
+			return nil, fmt.Errorf("parse schema %s: %w", schemaPath, err)
 		}
-	default:
-		cmd.Println("Using built-in schema")
-		raw, marshalErr := MarshalRepositoryConfigSchema()
+	} else {
+		raw, marshalErr := builtin()
 		if marshalErr != nil {
 			return nil, marshalErr
 		}
@@ -163,10 +164,11 @@ func loadValidationSchema(cmd *cobra.Command, configDir, schemaOverride, fallbac
 		}
 	}
 
-	if err := compiler.AddResource(schemaURL, doc); err != nil {
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource(memURL, doc); err != nil {
 		return nil, fmt.Errorf("load schema: %w", err)
 	}
-	schema, err := compiler.Compile(schemaURL)
+	schema, err := compiler.Compile(memURL)
 	if err != nil {
 		return nil, fmt.Errorf("compile schema: %w", err)
 	}
@@ -202,25 +204,39 @@ func resolveOrgSchema(cmd *cobra.Command, configDir string) (string, bool) {
 	return candidate, true
 }
 
-// validateFile parses a single YAML file and validates it against the schema,
-// returning one message per violation, each citing the file and JSON path.
-func validateFile(path string, schema *jsonschema.Schema) []string {
+// loadYAMLDocument reads and decodes path into a JSON-compatible value ready for
+// schema validation, returning the raw bytes alongside it.
+func loadYAMLDocument(path string) ([]byte, any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return []string{fmt.Sprintf("%s: failed to read file: %v", path, err)}
+		return nil, nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	var raw any
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return []string{fmt.Sprintf("%s: invalid YAML: %v", path, err)}
+		return nil, nil, fmt.Errorf("invalid YAML: %w", err)
 	}
 
 	instance, err := toJSONValue(raw)
 	if err != nil {
+		return nil, nil, err
+	}
+	return data, instance, nil
+}
+
+// validateFile parses a single YAML file and validates it against the schema,
+// returning one message per violation, each citing the file and JSON path.
+func validateFile(path string, schema *jsonschema.Schema) []string {
+	_, instance, err := loadYAMLDocument(path)
+	if err != nil {
 		return []string{fmt.Sprintf("%s: %v", path, err)}
 	}
+	return validateInstance(path, instance, schema)
+}
 
-	err = schema.Validate(instance)
+// validateInstance validates an already-decoded document against the schema.
+func validateInstance(path string, instance any, schema *jsonschema.Schema) []string {
+	err := schema.Validate(instance)
 	if err == nil {
 		return nil
 	}
