@@ -1,6 +1,9 @@
 package github
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type TeamsConfig struct {
 	Teams []Team `yaml:"teams,omitempty"`
@@ -17,12 +20,20 @@ type Team struct {
 func (c *TeamsConfig) Validate() []error {
 	var errs []error
 
-	seen := make(map[string]struct{}, len(c.Teams))
+	// Compared case-insensitively: GitHub derives a team's slug by lowercasing its
+	// name, so names differing only in case collide on the same team.
+	seen := make(map[string]string, len(c.Teams))
 	for _, team := range c.Teams {
-		if _, exists := seen[team.Name]; exists {
+		key := strings.ToLower(team.Name)
+		first, exists := seen[key]
+		switch {
+		case !exists:
+			seen[key] = team.Name
+		case first == team.Name:
 			errs = append(errs, fmt.Errorf("team %q is defined more than once in teams.yaml", team.Name))
+		default:
+			errs = append(errs, fmt.Errorf("team %q collides with %q in teams.yaml: names differing only in case produce the same GitHub team", team.Name, first))
 		}
-		seen[team.Name] = struct{}{}
 	}
 
 	return errs

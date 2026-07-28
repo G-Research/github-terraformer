@@ -154,6 +154,67 @@ func TestValidateOrg_BrokenTeamsFileStillEnforcesProtectedOwners(t *testing.T) {
 	assert.Contains(t, out, `protected owner "gcss-bot" is missing from members.yaml`)
 }
 
+// GitHub logins are case-insensitive, so these are one account. Left unflagged,
+// Terraform keys them separately and two resources manage one org membership.
+func TestValidateOrg_UsernameCaseCollisionRejected(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n  - username: Alice\n    role: member\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, `member "Alice" collides with "alice"`)
+}
+
+// Team names differing only in case slugify to the same GitHub team.
+func TestValidateOrg_TeamNameCaseCollisionRejected(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"teams.yaml": "teams:\n  - name: platform\n    visibility: visible\n  - name: Platform\n    visibility: visible\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, `team "Platform" collides with "platform"`)
+}
+
+func TestValidateOrg_ProtectedOwnerMatchedCaseInsensitively(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"members.yaml": "members:\n  - username: GCSS-Bot\n    role: owner\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "gcss-bot")
+
+	assert.NoError(t, err)
+	assert.Contains(t, out, "ok -- organisation config")
+}
+
+func TestValidateOrg_ProtectedOwnerDemotionCaughtRegardlessOfCase(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"members.yaml": "members:\n  - username: GCSS-Bot\n    role: member\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "gcss-bot")
+
+	require.Error(t, err)
+	assert.Contains(t, out, `protected owner "gcss-bot" has role "member"`)
+}
+
+// Terraform resolves a member's team as an exact map key, so a case-differing
+// reference must stay an error rather than be folded into a match.
+func TestValidateOrg_TeamReferenceMustMatchCaseExactly(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"teams.yaml":   "teams:\n  - name: platform\n    visibility: visible\n",
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n    teams:\n      - name: Platform\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "")
+
+	require.Error(t, err)
+	assert.Contains(t, out, `references team "Platform" but teams.yaml defines it as "platform"`)
+}
+
 func TestValidateOrg_ProtectedOwnerRemovedRejected(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml":   validTeamsYAML,
