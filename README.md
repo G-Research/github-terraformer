@@ -3,6 +3,7 @@
 - [📦 Github terraformer](#-github-terraformer)
     - [🆕 Creating New Repositories](#-creating-new-repositories)
     - [🍴 Handling Forks](#-handling-forks)
+    - [📚 Documentation](#-documentation)
 
 # 📦 Github terraformer
 
@@ -41,6 +42,13 @@ To import a **forked** repository into the organization:
 6. From here, user can make changes to the configuration file as needed, and should create a PR against the `{repository}.yaml` file to apply further changes
 
 > 📝 We are working on improving this so that the user has the same experience as when creating a new repo
+
+## 📚 Documentation
+
+- [Developer's Guide](DEVELOPERS_GUIDE.md) — every attribute available in a `repos/<repo>.yaml` config
+- [Installation Guide](INSTALLATION_GUIDE.md) — one-time setup of the GitHub Apps, HCP workspace and config repo
+- [Workflows](docs/workflows.md) — the reusable import and drift-check workflows
+- [Renaming teams and members](docs/renaming-teams-and-members.md) — how to rename without destroying and recreating
 
 > [!IMPORTANT]
 > All important attributes are documented in the [Developer's Guide](DEVELOPERS_GUIDE.md).
