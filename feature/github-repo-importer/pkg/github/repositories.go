@@ -4,7 +4,7 @@ type Repository struct {
 	Name                       string                `yaml:"-"`
 	Owner                      string                `yaml:"-"`
 	Description                *string               `yaml:"description,omitempty" jsonschema:"maxLength=350"`
-	Visibility                 string                `yaml:"visibility,omitempty" jsonschema:"enum=public,enum=private"`
+	Visibility                 string                `yaml:"visibility,omitempty" jsonschema:"enum=public,enum=private,enum=internal"`
 	HomepageURL                *string               `yaml:"homepage_url,omitempty"`
 	DefaultBranch              string                `yaml:"default_branch,omitempty" jsonschema:"required"`
 	HasIssues                  *bool                 `yaml:"has_issues,omitempty"`
