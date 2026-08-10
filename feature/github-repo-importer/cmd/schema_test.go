@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gr-oss-devops/github-repo-importer/pkg/github"
 )
 
 func TestBuildTeamsConfigSchema(t *testing.T) {
@@ -79,4 +81,24 @@ func TestBuildRepositoryConfigSchema(t *testing.T) {
 
 	assert.Equal(t, "Repository Configuration", schema.Title)
 	assert.True(t, strings.Contains(string(schema.ID), repositorySchemaOutFile), "schema $id should point at %s, got %s", repositorySchemaOutFile, schema.ID)
+
+	repositoryDef, ok := schema.Definitions["RepositoryWithExpansionConfig"]
+	assert.True(t, ok, "schema should define RepositoryWithExpansionConfig")
+	if ok {
+		visibility, hasVisibility := repositoryDef.Properties.Get("visibility")
+		assert.True(t, hasVisibility, "Repository should have a visibility property")
+		if hasVisibility {
+			assert.Equal(t, []interface{}{
+				github.VisibilityPublic,
+				github.VisibilityPrivate,
+				github.VisibilityInternal,
+			}, visibility.Enum, "visibility must accept every value the importer can emit")
+		}
+	}
+
+	refNameDef, ok := schema.Definitions["RefNameCondition"]
+	assert.True(t, ok, "schema should define RefNameCondition")
+	if ok {
+		assert.Equal(t, []string{"include"}, refNameDef.Required, "an include-only ref_name condition is valid")
+	}
 }
