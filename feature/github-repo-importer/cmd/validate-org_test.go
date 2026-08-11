@@ -302,6 +302,28 @@ func TestValidateOrg_NoFilesAndNoProtectedOwnersPasses(t *testing.T) {
 	assert.Contains(t, out, "ok -- organisation config")
 }
 
+func TestValidateOrg_UnmanagedOrgDoesNotEnforceProtectedOwners(t *testing.T) {
+	dir := t.TempDir()
+
+	out, err := runValidateOrgCmd(t, dir, "gcss-bot")
+
+	assert.NoError(t, err, "an organisation with no config manages no memberships, so nothing can be removed")
+	assert.Contains(t, out, "not under management yet")
+	assert.Contains(t, out, "ok -- organisation config")
+}
+
+func TestValidateOrg_StagedBootstrapEnforcesProtectedOwners(t *testing.T) {
+	dir := newStagedOrgConfigDir(t, map[string]string{
+		"teams.yaml":   validTeamsYAML,
+		"members.yaml": "members:\n  - username: someone-else\n    role: owner\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "gcss-bot")
+
+	require.Error(t, err, "enforcement must resume as soon as staged bootstrap output exists")
+	assert.Contains(t, out, `protected owner "gcss-bot" is missing from members.yaml`)
+}
+
 func TestValidateOrg_DeletedMembersFileStillEnforcesProtectedOwners(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"teams.yaml": validTeamsYAML,

@@ -44,6 +44,13 @@ Files may be absent. An absent members.yaml is treated as an empty member list,
 matching how Terraform reads it, so protected owners are enforced even when the
 file is deleted outright.
 
+The exception is an organisation that is not under management at all, with both
+teams.yaml and members.yaml absent from either location. Terraform creates no
+membership resources from that state, so there is nothing a plan could remove and
+protected owners are not enforced. Enforcement resumes as soon as either file
+exists, including staged bootstrap output, so the import that first takes ownership
+of the organisation is still checked.
+
 Unlike repository config, the schema is never taken from the config repository:
 both the schema and the protected-owner list are deployment config, so a pull
 request cannot weaken the rules it is validated against.`,
@@ -73,15 +80,20 @@ func runValidateOrg(cmd *cobra.Command, configDir, protectedOwnersCSV, fallbackT
 		filepath.Join(configDir, orgConfigDir, "members.yaml"),
 	)
 
-	protectedOwners := splitCSV(protectedOwnersCSV)
-	if len(protectedOwners) > 0 {
-		cmd.Printf("Enforcing %d protected owner(s): %s\n", len(protectedOwners), strings.Join(protectedOwners, ", "))
-	} else {
-		cmd.PrintErrln("WARNING: no protected owners configured, owner removal and demotion are not enforced")
-	}
+	unmanagedOrg := len(teamsFiles) == 0 && len(membersFiles) == 0
 
-	if len(teamsFiles) == 0 && len(membersFiles) == 0 {
+	protectedOwners := splitCSV(protectedOwnersCSV)
+	switch {
+	case unmanagedOrg:
 		cmd.Println("No organisation teams.yaml or members.yaml found, validating as an empty organisation config")
+		if len(protectedOwners) > 0 {
+			cmd.PrintErrln("WARNING: the organisation is not under management yet, so protected owners are not enforced; they take effect once organisation config exists")
+			protectedOwners = nil
+		}
+	case len(protectedOwners) > 0:
+		cmd.Printf("Enforcing %d protected owner(s): %s\n", len(protectedOwners), strings.Join(protectedOwners, ", "))
+	default:
+		cmd.PrintErrln("WARNING: no protected owners configured, owner removal and demotion are not enforced")
 	}
 
 	var failures []string
