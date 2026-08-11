@@ -17,6 +17,7 @@ These are the primary configuration options for each repository.
 - **`visibility`**: *(optional, string)* Defines the visibility of the repository. Possible values:
   - `public`
   - `private`
+  - `internal` *(GitHub Enterprise organizations only)*
 
 - **`homepage_url`**: *(optional, string)* The URL to the repository's homepage or website.
 

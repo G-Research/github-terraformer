@@ -79,6 +79,6 @@ type Conditions struct {
 }
 
 type RefNameCondition struct {
-	Exclude []string `yaml:"exclude,omitempty" jsonschema:"minItems=1,required"`
+	Exclude []string `yaml:"exclude,omitempty" jsonschema:"minItems=1"`
 	Include []string `yaml:"include,omitempty" jsonschema:"minItems=1,required"`
 }

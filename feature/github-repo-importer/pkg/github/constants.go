@@ -19,8 +19,9 @@ const (
 	RuleCodeScanning              = "code_scanning"
 
 	// Visibility
-	VisibilityPrivate = "private"
-	VisibilityPublic  = "public"
+	VisibilityPrivate  = "private"
+	VisibilityPublic   = "public"
+	VisibilityInternal = "internal"
 
 	TeamVisibilityVisible = "visible"
 	TeamVisibilitySecret  = "secret"

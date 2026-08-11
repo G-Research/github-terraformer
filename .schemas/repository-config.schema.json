@@ -291,7 +291,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "exclude",
         "include"
       ]
     },
@@ -321,7 +320,8 @@
           "type": "string",
           "enum": [
             "public",
-            "private"
+            "private",
+            "internal"
           ]
         },
         "homepage_url": {
