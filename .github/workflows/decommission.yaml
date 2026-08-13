@@ -10,8 +10,10 @@ name: Decommission repository
 #
 # Run this while repos/<repo>.yaml is still present, then delete the YAML afterward via
 # the normal config PR — the resources are already out of state, so that apply is a no-op.
-# WORKSPACE must be a repository-level Actions variable: the discover job and the
-# concurrency group run outside the environment and can't read environment-scoped vars.
+# WORKSPACE and the HCP token must both be repository-level: the discover job and the
+# concurrency group run outside the environment and can't read environment-scoped values.
+# Unlike plan and apply, which execute remotely, state operations run locally and need a
+# CLI version the workspace accepts, so both jobs resolve it before installing Terraform.
 
 on:
   workflow_call:
@@ -86,9 +88,18 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve the workspace Terraform version
+        id: tfversion
+        uses: ./.github/actions/resolve-tf-version
+        with:
+          tfc-token: ${{ secrets.tfc_token }}
+          tfc-organization: ${{ inputs.tfc_org }}
+          tfc-workspace: ${{ vars.WORKSPACE }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
+          terraform_version: ${{ steps.tfversion.outputs.terraform-version }}
           cli_config_credentials_token: ${{ secrets.tfc_token }}
 
       - name: Link backend file
@@ -168,9 +179,18 @@ jobs:
           ref: ${{ inputs.gcss_ref }}
           persist-credentials: false
 
+      - name: Resolve the workspace Terraform version
+        id: tfversion
+        uses: ./.github/actions/resolve-tf-version
+        with:
+          tfc-token: ${{ secrets.tfc_token }}
+          tfc-organization: ${{ inputs.tfc_org }}
+          tfc-workspace: ${{ vars.WORKSPACE }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
+          terraform_version: ${{ steps.tfversion.outputs.terraform-version }}
           cli_config_credentials_token: ${{ secrets.tfc_token }}
 
       - name: Link backend file

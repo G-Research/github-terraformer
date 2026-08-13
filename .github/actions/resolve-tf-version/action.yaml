@@ -1,0 +1,74 @@
+name: "Resolve the workspace Terraform version"
+description: "Reads the Terraform version a HCP workspace requires, for jobs that run state operations locally. Plan and apply execute remotely and do not need this."
+inputs:
+  tfc-token:
+    description: "HCP token for authentication"
+    required: true
+  tfc-organization:
+    description: "HCP cloud organization"
+    required: true
+  tfc-workspace:
+    description: "HCP cloud workspace name"
+    required: true
+outputs:
+  terraform-version:
+    description: "Version to install, in a form setup-terraform accepts"
+    value: ${{ steps.resolve.outputs.terraform-version }}
+runs:
+  using: "composite"
+  steps:
+    - name: Resolve the workspace Terraform version
+      id: resolve
+      shell: bash
+      env:
+        TFC_TOKEN: ${{ inputs.tfc-token }}
+        TFC_ORG: ${{ inputs.tfc-organization }}
+        TFC_WORKSPACE: ${{ inputs.tfc-workspace }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${TFC_TOKEN}" ]; then
+          echo "::error::No HCP token available. This workflow runs state operations outside a deployment environment, so the token must be a repository-level secret. An environment-scoped secret is not readable here."
+          exit 1
+        fi
+        if [ -z "${TFC_WORKSPACE}" ]; then
+          echo "::error::No workspace name available. WORKSPACE must be a repository-level Actions variable for the same reason as the token."
+          exit 1
+        fi
+
+        response=$(curl -sS --fail-with-body \
+          -H "Authorization: Bearer ${TFC_TOKEN}" \
+          -H "Content-Type: application/vnd.api+json" \
+          "https://app.terraform.io/api/v2/organizations/${TFC_ORG}/workspaces/${TFC_WORKSPACE}") || {
+          echo "::error::Could not read workspace '${TFC_WORKSPACE}' in organization '${TFC_ORG}'. Check the token is valid and has access to it."
+          exit 1
+        }
+
+        required=$(printf '%s' "$response" | jq -r '.data.attributes["terraform-version"] // empty')
+        if [ -z "$required" ]; then
+          echo "::error::Workspace '${TFC_WORKSPACE}' reported no Terraform version."
+          exit 1
+        fi
+
+        # setup-terraform takes an exact version or a constraint starting with "<". A
+        # workspace may store either an exact version or a pessimistic constraint, so
+        # translate the latter to its upper bound. Never fall back to the latest release:
+        # installing a version the workspace rejects is the failure this exists to prevent.
+        case "$required" in
+          [0-9]*.[0-9]*.[0-9]*)
+            resolved="$required"
+            ;;
+          "~>"[0-9]*.[0-9]*.[0-9]*)
+            base=${required#"~>"}
+            major=${base%%.*}
+            minor=$(printf '%s' "$base" | cut -d. -f2)
+            resolved="<${major}.$((minor + 1)).0"
+            ;;
+          *)
+            echo "::error::Workspace '${TFC_WORKSPACE}' requires '${required}', which this action cannot translate into a version setup-terraform accepts. Set the workspace to an exact version, or extend this action to handle it."
+            exit 1
+            ;;
+        esac
+
+        echo "Workspace requires '${required}', installing '${resolved}'"
+        echo "terraform-version=${resolved}" >> "$GITHUB_OUTPUT"
