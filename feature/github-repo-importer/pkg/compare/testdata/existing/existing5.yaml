@@ -1,0 +1,21 @@
+description: ""
+homepage_url: ""
+visibility: public
+default_branch: main
+has_issues: true
+has_downloads: false
+allow_auto_merge: false
+archived: false
+license_template:
+rulesets:
+  - enforcement: active
+    name: test
+    rules:
+      deletion: true
+      non_fast_forward: true
+    target: branch
+    conditions:
+      ref_name:
+        include:
+          - ~DEFAULT_BRANCH
+vulnerability_alerts_enabled: true

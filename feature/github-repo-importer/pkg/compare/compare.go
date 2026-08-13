@@ -102,6 +102,7 @@ func hashNormalizedYamlFile(path string) (string, error) {
 		removeKey(root, "id")
 		removeKey(root, "branch_policy_ids")
 		removeKey(root, "tag_policy_ids")
+		removeEmptyValues(root)
 		sortMappingNode(root)
 	}
 
@@ -134,6 +135,39 @@ func removeKey(node *yaml.Node, target string) {
 			removeKey(elem, target)
 		}
 	}
+}
+
+// removeEmptyValues drops mapping entries whose value is an empty string or null, so a
+// config that writes `homepage_url: ""` and one that omits the key entirely hash the same.
+// Only scalars qualify: false and 0 are meaningful values and are kept. Containers left
+// empty by this pass are also kept, since collapsing them asserts an equivalence this does
+// not need.
+func removeEmptyValues(node *yaml.Node) {
+	switch node.Kind {
+	case yaml.MappingNode:
+		newContent := make([]*yaml.Node, 0, len(node.Content))
+		for i := 0; i < len(node.Content); i += 2 {
+			k := node.Content[i]
+			v := node.Content[i+1]
+			if isEmptyScalar(v) {
+				continue
+			}
+			removeEmptyValues(v)
+			newContent = append(newContent, k, v)
+		}
+		node.Content = newContent
+	case yaml.SequenceNode:
+		for _, elem := range node.Content {
+			removeEmptyValues(elem)
+		}
+	}
+}
+
+func isEmptyScalar(node *yaml.Node) bool {
+	if node.Kind != yaml.ScalarNode {
+		return false
+	}
+	return node.Tag == "!!null" || (node.Tag == "!!str" && node.Value == "")
 }
 
 func sortMappingNode(node *yaml.Node) {
