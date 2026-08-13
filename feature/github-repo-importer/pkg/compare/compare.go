@@ -137,11 +137,6 @@ func removeKey(node *yaml.Node, target string) {
 	}
 }
 
-// removeEmptyValues drops mapping entries whose value is an empty string or null, so a
-// config that writes `homepage_url: ""` and one that omits the key entirely hash the same.
-// Only scalars qualify: false and 0 are meaningful values and are kept. Containers left
-// empty by this pass are also kept, since collapsing them asserts an equivalence this does
-// not need.
 func removeEmptyValues(node *yaml.Node) {
 	switch node.Kind {
 	case yaml.MappingNode:
