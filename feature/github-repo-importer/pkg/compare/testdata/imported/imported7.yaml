@@ -1,0 +1,5 @@
+visibility: public
+default_branch: main
+has_issues: true
+archived: false
+vulnerability_alerts_enabled: true

@@ -37,6 +37,24 @@ func TestHashingYamlFiles(t *testing.T) {
 			pathOfFresh:    "testdata/existing/existing4.yaml",
 			wantEqual:      true,
 		},
+		{
+			name:           "empty and null values are equivalent to the key being absent",
+			pathOfImported: "testdata/imported/imported5.yaml",
+			pathOfFresh:    "testdata/existing/existing5.yaml",
+			wantEqual:      true,
+		},
+		{
+			name:           "a real difference is still detected alongside an empty value",
+			pathOfImported: "testdata/imported/imported6.yaml",
+			pathOfFresh:    "testdata/existing/existing6.yaml",
+			wantEqual:      false,
+		},
+		{
+			name:           "a false value on one side only is a difference, not an empty value",
+			pathOfImported: "testdata/imported/imported7.yaml",
+			pathOfFresh:    "testdata/existing/existing7.yaml",
+			wantEqual:      false,
+		},
 	}
 
 	for _, tt := range tests {
