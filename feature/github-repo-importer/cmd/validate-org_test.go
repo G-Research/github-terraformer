@@ -369,7 +369,7 @@ func TestValidateOrg_StagedMembersResolveAgainstPromotedTeams(t *testing.T) {
 	stagedDir := filepath.Join(dir, "importer_tmp_dir", "organisation")
 	require.NoError(t, os.MkdirAll(stagedDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(stagedDir, "members.yaml"),
-		[]byte("members:\n  - username: alice\n    role: owner\n    teams:\n      - name: platform\n"), 0o644))
+		[]byte("members:\n  - username: alice\n    role: owner\n    teams:\n      - name: platform\n        role: maintainer\n"), 0o644))
 
 	out, err := runValidateOrgCmd(t, dir, "alice")
 

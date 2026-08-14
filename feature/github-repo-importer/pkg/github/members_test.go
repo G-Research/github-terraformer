@@ -19,13 +19,44 @@ func TestMembersConfigValidate(t *testing.T) {
 			name: "valid config with team member and maintainer roles",
 			config: MembersConfig{
 				Members: []Member{
-					{Username: "alice", Role: MemberRoleOwner, Teams: []TeamMembership{{Name: "platform"}}},
+					{Username: "alice", Role: MemberRoleOwner, Teams: []TeamMembership{{Name: "platform", Role: TeamRoleMaintainer}}},
 					{Username: "bob", Role: MemberRoleMember, Teams: []TeamMembership{{Name: "platform", Role: TeamRoleMaintainer}, {Name: "security-core"}}},
 					{Username: "carol", Role: MemberRoleMember},
 				},
 			},
 			protectedOwners: []string{"alice"},
 			wantErrors:      nil,
+		},
+		{
+			name: "owner given a plain member role in a team is rejected",
+			config: MembersConfig{
+				Members: []Member{
+					{Username: "alice", Role: MemberRoleOwner, Teams: []TeamMembership{{Name: "platform", Role: TeamRoleMember}}},
+				},
+			},
+			wantErrors: []string{
+				`member "alice" is an organisation owner, so team "platform" cannot use role "member": GitHub reports owners as maintainers of every team they belong to, so the plan would keep proposing this change without it ever taking effect`,
+			},
+		},
+		{
+			name: "owner with an omitted team role is rejected, since it defaults to member",
+			config: MembersConfig{
+				Members: []Member{
+					{Username: "alice", Role: MemberRoleOwner, Teams: []TeamMembership{{Name: "platform"}}},
+				},
+			},
+			wantErrors: []string{
+				`member "alice" is an organisation owner, so team "platform" needs role "maintainer": the role defaults to "member" when omitted, and GitHub reports owners as maintainers of every team they belong to, so the plan would keep proposing this change without it ever taking effect`,
+			},
+		},
+		{
+			name: "a plain member may hold either team role",
+			config: MembersConfig{
+				Members: []Member{
+					{Username: "bob", Role: MemberRoleMember, Teams: []TeamMembership{{Name: "platform", Role: TeamRoleMember}, {Name: "security-core"}}},
+				},
+			},
+			wantErrors: nil,
 		},
 		{
 			name: "duplicate username rejected",

@@ -57,6 +57,14 @@ func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 			}
 			memberTeams[teamKey] = struct{}{}
 
+			if member.Role == MemberRoleOwner && effectiveTeamRole(team.Role) == TeamRoleMember {
+				if team.Role == "" {
+					errs = append(errs, fmt.Errorf("member %q is an organisation owner, so team %q needs role %q: the role defaults to %q when omitted, and GitHub reports owners as maintainers of every team they belong to, so the plan would keep proposing this change without it ever taking effect", member.Username, team.Name, TeamRoleMaintainer, TeamRoleMember))
+				} else {
+					errs = append(errs, fmt.Errorf("member %q is an organisation owner, so team %q cannot use role %q: GitHub reports owners as maintainers of every team they belong to, so the plan would keep proposing this change without it ever taking effect", member.Username, team.Name, TeamRoleMember))
+				}
+			}
+
 			if _, ok := teamSet[team.Name]; ok {
 				continue
 			}
@@ -69,6 +77,13 @@ func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 	}
 
 	return errs
+}
+
+func effectiveTeamRole(role string) string {
+	if role == "" {
+		return TeamRoleMember
+	}
+	return role
 }
 
 // ValidateProtectedOwners checks that every protected owner is present and still an owner.
