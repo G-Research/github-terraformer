@@ -25,6 +25,7 @@ func (c *MembersConfig) Validate(knownTeams []string, protectedOwners []string) 
 	return append(errs, c.ValidateProtectedOwners(protectedOwners)...)
 }
 
+// ValidateEntries checks the rules that hold within a single members file.
 func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 	var errs []error
 
@@ -78,7 +79,6 @@ func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 	return errs
 }
 
-// effectiveTeamRole mirrors the Terraform default, where an omitted role is a plain member.
 func effectiveTeamRole(role string) string {
 	if role == "" {
 		return TeamRoleMember
