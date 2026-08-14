@@ -50,6 +50,10 @@ runs:
           exit 1
         fi
 
+        # Constraints are conventionally written with a space, as in "~> 1.14.0", so match
+        # against a spaceless form rather than requiring one particular spelling.
+        required=${required// /}
+
         # setup-terraform takes an exact version or a constraint starting with "<". A
         # workspace may store either an exact version or a pessimistic constraint, so
         # translate the latter to its upper bound. Never fall back to the latest release:
