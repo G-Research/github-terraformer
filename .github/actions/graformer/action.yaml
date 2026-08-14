@@ -96,6 +96,15 @@ runs:
               recreate: []
           };
           
+          function renderField(resourceChange, field){
+            const from = resourceChange.change.before && resourceChange.change.before[field];
+            const to = resourceChange.change.after && resourceChange.change.after[field];
+            if (from && to && from !== to) {
+              return `${from} -> ${to}`;
+            }
+            return to || from;
+          }
+
           function getResourceNameFromChange(resourceChange, actualChange){
             if(resourceChange.type === 'github_repository'){
               return `${resourceChange.type} :: ${actualChange.name}`
@@ -117,6 +126,14 @@ runs:
               return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.environment} (${pattern})`;
             }else if(resourceChange.type === 'github_repository_custom_property'){
               return `${resourceChange.type} :: ${actualChange.repository}/${actualChange.property_name}`;
+            }else if(resourceChange.type === 'github_team'){
+              return `${resourceChange.type} :: ${renderField(resourceChange, 'name')}`;
+            }else if(resourceChange.type === 'github_membership'){
+              return `${resourceChange.type} :: ${renderField(resourceChange, 'username')} (${renderField(resourceChange, 'role')})`;
+            }else if(resourceChange.type === 'github_team_membership'){
+              const match = resourceChange.address.match(/github_team_membership\.[^.[]+\["([^"]+)"\]$/);
+              const membership = match ? match[1] : renderField(resourceChange, 'username');
+              return `${resourceChange.type} :: ${membership} (${renderField(resourceChange, 'role')})`;
             } else {
                 return `unknown type ${resourceChange.type}. resource address: ${resourceChange.address}`
             }
