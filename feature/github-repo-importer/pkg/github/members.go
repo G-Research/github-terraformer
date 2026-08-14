@@ -25,7 +25,6 @@ func (c *MembersConfig) Validate(knownTeams []string, protectedOwners []string) 
 	return append(errs, c.ValidateProtectedOwners(protectedOwners)...)
 }
 
-// ValidateEntries checks the rules that hold within a single members file.
 func (c *MembersConfig) ValidateEntries(knownTeams []string) []error {
 	var errs []error
 
