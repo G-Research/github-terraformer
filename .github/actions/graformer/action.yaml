@@ -96,8 +96,6 @@ runs:
               recreate: []
           };
           
-          // Callers pass change.before for updates, which is fine for stable identity fields
-          // but wrong for anything that changes. Read both sides and show the transition.
           function renderField(resourceChange, field){
             const from = resourceChange.change.before && resourceChange.change.before[field];
             const to = resourceChange.change.after && resourceChange.change.after[field];
@@ -133,9 +131,6 @@ runs:
             }else if(resourceChange.type === 'github_membership'){
               return `${resourceChange.type} :: ${renderField(resourceChange, 'username')} (${renderField(resourceChange, 'role')})`;
             }else if(resourceChange.type === 'github_team_membership'){
-              // The address key is already "<username>/<team>"; the team is not in teamMap,
-              // which only covers data.github_team lookups. Anchored on the resource type so a
-              // module key can never be matched instead.
               const match = resourceChange.address.match(/github_team_membership\.[^.[]+\["([^"]+)"\]$/);
               const membership = match ? match[1] : renderField(resourceChange, 'username');
               return `${resourceChange.type} :: ${membership} (${renderField(resourceChange, 'role')})`;
