@@ -25,7 +25,7 @@ type Repository struct {
 	IsTemplate                 *bool                 `yaml:"is_template,omitempty"`
 	Archived                   *bool                 `yaml:"archived,omitempty"`
 	HasDiscussions             *bool                 `yaml:"has_discussions,omitempty"`
-	Topics                     []string              `yaml:"topics,omitempty"`
+	Topics                     []string              `yaml:"topics,omitempty" jsonschema:"maxItems=20"`
 	PullCollaborators          []string              `yaml:"pull_collaborators,omitempty"`
 	TriageCollaborators        []string              `yaml:"triage_collaborators,omitempty"`
 	PushCollaborators          []string              `yaml:"push_collaborators,omitempty"`
