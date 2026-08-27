@@ -44,6 +44,11 @@ Files may be absent. An absent members.yaml is treated as an empty member list,
 matching how Terraform reads it, so protected owners are enforced even when the
 file is deleted outright.
 
+--protected-owners is required whenever any organisation config is present:
+validating organisation membership without it would report success while
+enforcing nothing. A config directory with no organisation config at all needs
+no list and passes.
+
 Unlike repository config, the schema is never taken from the config repository:
 both the schema and the protected-owner list are deployment config, so a pull
 request cannot weaken the rules it is validated against.`,
@@ -74,17 +79,21 @@ func runValidateOrg(cmd *cobra.Command, configDir, protectedOwnersCSV, fallbackT
 	)
 
 	protectedOwners := splitCSV(protectedOwnersCSV)
+	hasOrgConfig := len(teamsFiles) > 0 || len(membersFiles) > 0
+
 	if len(protectedOwners) > 0 {
-		cmd.Printf("Enforcing %d protected owner(s): %s\n", len(protectedOwners), strings.Join(protectedOwners, ", "))
-	} else {
-		cmd.PrintErrln("WARNING: no protected owners configured, owner removal and demotion are not enforced")
+		cmd.Printf("Enforcing %d protected owner(s)\n", len(protectedOwners))
 	}
 
-	if len(teamsFiles) == 0 && len(membersFiles) == 0 {
+	if !hasOrgConfig {
 		cmd.Println("No organisation teams.yaml or members.yaml found, validating as an empty organisation config")
 	}
 
 	var failures []string
+
+	if len(protectedOwners) == 0 && hasOrgConfig {
+		failures = append(failures, "no protected owners configured: organisation config is present, so owner removal and demotion must be enforced. Set PROTECTED_OWNERS on the deployment environment that runs validation")
+	}
 
 	teamNames, teamsOK := validateTeamsFiles(cmd, teamsFiles, fallbackTeams, &failures)
 	validateMembersFiles(cmd, membersFiles, fallbackMembers, teamNames, teamsOK, protectedOwners, &failures)

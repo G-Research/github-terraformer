@@ -242,15 +242,37 @@ func TestValidateOrg_ProtectedOwnersCSVParsed(t *testing.T) {
 	assert.Contains(t, out, "Enforcing 2 protected owner(s)")
 }
 
-func TestValidateOrg_WarnsWhenNoProtectedOwnersConfigured(t *testing.T) {
+func TestValidateOrg_FailsWhenOrgConfigPresentAndNoProtectedOwners(t *testing.T) {
 	dir := newOrgConfigDir(t, map[string]string{
 		"members.yaml": "members:\n  - username: alice\n    role: owner\n",
 	})
 
 	out, err := runValidateOrgCmd(t, dir, "")
 
-	assert.NoError(t, err)
-	assert.Contains(t, out, "WARNING: no protected owners configured")
+	require.Error(t, err)
+	assert.Contains(t, out, "no protected owners configured")
+}
+
+func TestValidateOrg_FailsWhenOnlyTeamsPresentAndNoProtectedOwners(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"teams.yaml": validTeamsYAML,
+	})
+
+	_, err := runValidateOrgCmd(t, dir, "")
+
+	require.Error(t, err)
+}
+
+func TestValidateOrg_ProtectedOwnerLoginsAreNotEchoed(t *testing.T) {
+	dir := newOrgConfigDir(t, map[string]string{
+		"members.yaml": "members:\n  - username: alice\n    role: owner\n",
+	})
+
+	out, err := runValidateOrgCmd(t, dir, "alice")
+
+	require.NoError(t, err)
+	assert.Contains(t, out, "Enforcing 1 protected owner(s)")
+	assert.NotContains(t, out, "alice")
 }
 
 func TestValidateOrg_FileBasedSchemasAreUsed(t *testing.T) {
