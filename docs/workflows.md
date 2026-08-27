@@ -131,16 +131,3 @@ To import an **existing GitHub repository** into Terraform:
     - Create a PR against the `prod` branch
 4. Review, approve, and merge the PR
 5. Terraform Cloud will detect and apply the changes
-
-## 🔀 Migrating from caller-passed `protected_owners` / `reviewers`
-
-`tf-plan.yaml` and `drift-check.yaml` used to take these values as `workflow_call` inputs, sourced from **repository-level** variables in the config repo. They are now read from the environment the job already runs in. Removing the inputs is a breaking change: a caller that still passes one fails immediately with `Invalid input`.
-
-Because callers pin a ref, nothing breaks until that ref is bumped. Migrate in this order:
-
-1. Add `PROTECTED_OWNERS` to the **`plan`** environment and `DRIFT_REVIEWERS` to the **`schedule`** environment of the config repo (Settings → Environments → … → Environment variables).
-2. In a **single** commit, bump the pinned ref **and** drop `protected_owners:` / `reviewers:` from the `with:` blocks.
-3. Once a run succeeds, delete the repository-level `PROTECTED_OWNERS` and `DRIFT_REVIEWERS` variables.
-
-> [!NOTE]
-> Repository-level `WORKSPACE` and `TFC_TOKEN` stay where they are — the `discover` job of the decommission workflow runs outside any environment and cannot read environment-scoped values. See the decommission section above.

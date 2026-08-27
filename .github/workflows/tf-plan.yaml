@@ -30,12 +30,6 @@ on:
         required: true
 
 jobs:
-  # The 'plan' environment must provide PROTECTED_OWNERS — the org logins that
-  # must stay owners in organisation/members.yaml. It is deployment config, so a
-  # pull request cannot weaken the rule it is validated against. The environment
-  # MUST NOT have required-reviewer/wait-timer protection rules, or every pull
-  # request waits for a manual approval before its author sees any validation
-  # feedback at all.
   validate:
     runs-on: ubuntu-latest
     environment: plan
