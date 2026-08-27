@@ -102,7 +102,9 @@ runs:
             --head "$BRANCH")
           echo "Opened new drift PR: $pr_url"
           if [[ -n "${REVIEWERS}" ]]; then
-            gh pr edit "$pr_url" --add-reviewer "${REVIEWERS}" || echo "Warning: could not request reviewers '${REVIEWERS}'"
+            gh pr edit "$pr_url" --add-reviewer "${REVIEWERS}" || echo "::warning::Could not request reviewers '${REVIEWERS}' on $pr_url"
+          else
+            echo "::warning::No reviewers configured, drift PR $pr_url is unassigned. Set DRIFT_REVIEWERS on the schedule environment."
           fi
         else
           echo "Updated existing drift PR #$existing_pr."

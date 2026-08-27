@@ -139,7 +139,7 @@ Use `terraform state rm` instead. The recreate is safe because the provider crea
 
 ### 1. Pre-flight: protected owners
 
-If the member is listed in the `protected_owners` input passed to `tf-plan.yaml` (a deployment-side repository variable, not config-repo content), **update that variable to the new username first**. Otherwise `validate-org` fails the PR because a protected owner is missing from `members.yaml`.
+If the member is listed in `PROTECTED_OWNERS` — a variable on the config repo's `plan` deployment environment, not config-repo content — **update that variable to the new username first**. Otherwise `validate-org` fails the PR because a protected owner is missing from `members.yaml`.
 
 ### 2. Open the PR and get it approved
 

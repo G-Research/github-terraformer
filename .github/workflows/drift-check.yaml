@@ -12,11 +12,6 @@ on:
         type: string
         description: "Terraform Cloud organization"
         required: true
-      reviewers:
-        type: string
-        description: "Comma-separated reviewers (users or org/team slugs) to request on the drift PR"
-        required: false
-        default: ""
     secrets:
       tfc_token:
         description: "Terraform Cloud API token"
@@ -40,9 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     # The 'schedule' environment must provide APP_ID + app_private_key (management
     # app, which needs org-wide "All repositories" access so new repos are visible
-    # to the importer), plus WORKSPACE for the plan. Because this runs unattended
-    # on a schedule, the environment MUST NOT have required-reviewer/wait-timer
-    # protection rules, or every run will stall pending manual approval.
+    # to the importer), WORKSPACE for the plan, and DRIFT_REVIEWERS for the drift
+    # PR. Because this runs unattended on a schedule, the environment MUST NOT
+    # have required-reviewer/wait-timer protection rules, or every run will stall
+    # pending manual approval.
     environment: schedule
     permissions:
       contents: write
@@ -124,7 +120,7 @@ jobs:
         uses: ./.github/actions/drift-pr
         with:
           branch-name: "drift/detected-changes"
-          reviewers: ${{ inputs.reviewers }}
+          reviewers: ${{ vars.DRIFT_REVIEWERS }}
           github-token: ${{ steps.generate-token.outputs.token }}
           # terraform is the authority on whether drift is real (avoids false
           # positives from config differences it treats as no-ops).
