@@ -26,6 +26,32 @@
     5. Upon PR merge, Terraform Cloud plans and applies the configuration
     6. Configuration file is then sanitized (ids removed) and moved to the appropriate directory `feature/github-repo-provisioning/repo_configs/{branch}/{organization}`
 
+### ✅ `Validate and Plan` Workflow
+
+- **Trigger**: `workflow_run` from the config repo, on every pull request.
+- **Behavior**:
+    1. `validate` checks `repos/*.yaml` against the repository schema and `organisation/*.yaml` against the teams/members schemas and cross-file rules — including the protected-owner rule, which fails the PR if a protected identity is removed from or demoted in `members.yaml`.
+    2. `terraform-plan` (`needs: validate`, so it is skipped when validation fails) runs `terraform plan` on Terraform Cloud and posts the result as a PR comment and a check-run.
+
+#### Consumer setup requirements
+
+Both jobs run in the **`plan`** environment. That environment **must** provide all of:
+
+| Name | Type | Purpose |
+|---|---|---|
+| `PROTECTED_OWNERS` | variable | Comma-separated org logins that must stay owners in `organisation/members.yaml` |
+| `APP_ID` | variable | GitHub App used to post the plan comment and check-run |
+| `APP_NAME` | variable | Name of that App |
+| `app_private_key` | secret | Private key for that App |
+| `WORKSPACE` | variable | Terraform Cloud workspace |
+| `tfc_token` | secret | Terraform Cloud API token |
+
+> [!IMPORTANT]
+> `PROTECTED_OWNERS` is deployment config and is deliberately read from the environment rather than passed in by the caller, so that a pull request cannot weaken the rule it is validated against — and so that a config repo cannot silently disable the check by forgetting to wire it. When it is unset, `validate-org` warns and enforces nothing.
+
+> [!IMPORTANT]
+> The `plan` environment **must not** have required-reviewer or wait-timer protection rules. `validate` runs in it too, so any approval gate means a pull request author waits for a human before seeing any validation feedback at all.
+
 ### 🔍 `Drift Check` Workflow
 
 - **Trigger**: Scheduled (cron) from the config repo.
@@ -45,11 +71,10 @@ The reusable `drift-check.yaml` runs in the **`schedule`** environment. That env
 | `app_private_key` | secret | Private key for that App |
 | `WORKSPACE` | variable | Terraform Cloud workspace |
 | `tfc_token` | secret | Terraform Cloud API token |
+| `DRIFT_REVIEWERS` | variable | Comma-separated users or `org/team` slugs to request as reviewers on the drift PR |
 
 > [!IMPORTANT]
 > The `schedule` environment **must not** have required-reviewer or wait-timer protection rules. The workflow runs unattended on a schedule, so any approval gate makes every run stall forever.
-
-Caller also passes `reviewers` (comma-separated users or `org/team` slugs) to request on the drift PR.
 
 #### Notes / limitations
 
@@ -106,3 +131,16 @@ To import an **existing GitHub repository** into Terraform:
     - Create a PR against the `prod` branch
 4. Review, approve, and merge the PR
 5. Terraform Cloud will detect and apply the changes
+
+## 🔀 Migrating from caller-passed `protected_owners` / `reviewers`
+
+`tf-plan.yaml` and `drift-check.yaml` used to take these values as `workflow_call` inputs, sourced from **repository-level** variables in the config repo. They are now read from the environment the job already runs in. Removing the inputs is a breaking change: a caller that still passes one fails immediately with `Invalid input`.
+
+Because callers pin a ref, nothing breaks until that ref is bumped. Migrate in this order:
+
+1. Add `PROTECTED_OWNERS` to the **`plan`** environment and `DRIFT_REVIEWERS` to the **`schedule`** environment of the config repo (Settings → Environments → … → Environment variables).
+2. In a **single** commit, bump the pinned ref **and** drop `protected_owners:` / `reviewers:` from the `with:` blocks.
+3. Once a run succeeds, delete the repository-level `PROTECTED_OWNERS` and `DRIFT_REVIEWERS` variables.
+
+> [!NOTE]
+> Repository-level `WORKSPACE` and `TFC_TOKEN` stay where they are — the `discover` job of the decommission workflow runs outside any environment and cannot read environment-scoped values. See the decommission section above.
