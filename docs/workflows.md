@@ -35,22 +35,27 @@
 
 #### Consumer setup requirements
 
-Both jobs run in the **`plan`** environment. That environment **must** provide all of:
+Both jobs run in the **`plan`** environment. Variables are read from that environment by the workflow itself:
 
-| Name | Type | Purpose |
+| Name | Read by | Purpose |
 |---|---|---|
-| `PROTECTED_OWNERS` | variable | Comma-separated org logins that must stay owners in `organisation/members.yaml` |
-| `APP_ID` | variable | GitHub App used to post the plan comment and check-run |
-| `APP_NAME` | variable | Name of that App |
-| `app_private_key` | secret | Private key for that App |
-| `WORKSPACE` | variable | Terraform Cloud workspace |
-| `tfc_token` | secret | Terraform Cloud API token |
+| `PROTECTED_OWNERS` | `validate` | Comma-separated org logins that must stay owners in `organisation/members.yaml` |
+| `APP_ID` | `terraform-plan` | GitHub App used to post the plan comment and check-run |
+| `WORKSPACE` | `terraform-plan` | Terraform Cloud workspace |
+
+The caller must also pass all three `workflow_call` secrets — these are declared on the reusable workflow, not looked up by the jobs:
+
+| Name | Purpose |
+|---|---|
+| `app_private_key` | Private key for the App named by `APP_ID` |
+| `gh_token` | Checks the config repo out at the commit under review |
+| `tfc_token` | Terraform Cloud API token |
 
 > [!IMPORTANT]
-> `PROTECTED_OWNERS` is deployment config and is deliberately read from the environment rather than passed in by the caller, so that a pull request cannot weaken the rule it is validated against — and so that a config repo cannot silently disable the check by forgetting to wire it. When it is unset, `validate-org` warns and enforces nothing.
+> `PROTECTED_OWNERS` is deployment config and is deliberately read from the environment rather than passed in by the caller, so that a pull request cannot weaken the rule it is validated against. Leaving it unset is not a way to opt out: whenever any `organisation/` config is present, `validate-org` fails. A config repo with no organisation config at all needs no list and passes.
 
-> [!IMPORTANT]
-> The `plan` environment **must not** have required-reviewer or wait-timer protection rules. `validate` runs in it too, so any approval gate means a pull request author waits for a human before seeing any validation feedback at all.
+> [!WARNING]
+> The `plan` environment **must not** have required-reviewer or wait-timer protection rules. Protection rules apply per job, and `validate` now runs in this environment too — so an approval gate costs **two** approvals per pull request, and the author sees no validation feedback until the first one lands. Consumers that had reviewers on `plan` for the `terraform-plan` job need to remove them, or accept that cost.
 
 ### 🔍 `Drift Check` Workflow
 
@@ -71,7 +76,7 @@ The reusable `drift-check.yaml` runs in the **`schedule`** environment. That env
 | `app_private_key` | secret | Private key for that App |
 | `WORKSPACE` | variable | Terraform Cloud workspace |
 | `tfc_token` | secret | Terraform Cloud API token |
-| `DRIFT_REVIEWERS` | variable | Comma-separated users or `org/team` slugs to request as reviewers on the drift PR |
+| `DRIFT_REVIEWERS` | variable | Comma-separated users or `org/team` slugs to request as reviewers on the drift PR. When unset the drift PR still opens, unassigned, and the run logs a warning |
 
 > [!IMPORTANT]
 > The `schedule` environment **must not** have required-reviewer or wait-timer protection rules. The workflow runs unattended on a schedule, so any approval gate makes every run stall forever.
