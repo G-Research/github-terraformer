@@ -29,21 +29,25 @@
 ### ✅ `Validate and Plan` Workflow
 
 - **Trigger**: `workflow_run` from the config repo, on every pull request.
-- **Behavior**:
-    1. `validate` checks `repos/*.yaml` against the repository schema and `organisation/*.yaml` against the teams/members schemas and cross-file rules — including the protected-owner rule, which fails the PR if a protected identity is removed from or demoted in `members.yaml`.
-    2. `terraform-plan` (`needs: validate`, so it is skipped when validation fails) runs `terraform plan` on Terraform Cloud and posts the result as a PR comment and a check-run.
+- **Behavior**: a single `validate-and-plan` job, top to bottom:
+    1. Opens a check run named **`Terraform plan`** on the head commit, `in_progress`, before any work happens.
+    2. Validates `repos/*.yaml` against the repository schema and `organisation/*.yaml` against the teams/members schemas and cross-file rules — including the protected-owner rule, which fails the PR if a protected identity is removed from or demoted in `members.yaml`.
+    3. Runs `terraform plan` on Terraform Cloud. Like every later step it is skipped once validation has failed, so an invalid config never reaches Terraform.
+    4. `Report result` runs on every path and concludes that same check run exactly once: `success` with the plan summary, `failure` for a validation or plan failure, `cancelled` for a cancelled run. It posts the plan summary as a PR comment whenever the plan actually ran.
+
+`Terraform plan` is the check to list as a required status check. It is opened up front and always concluded, so a failed validation now reports a failed check instead of leaving the pull request waiting on a check that never arrives.
 
 #### Consumer setup requirements
 
-Both jobs run in the **`plan`** environment. Variables are read from that environment by the workflow itself:
+The job runs in the **`plan`** environment. Variables are read from that environment by the workflow itself:
 
-| Name | Read by | Purpose |
-|---|---|---|
-| `PROTECTED_OWNERS` | `validate` | Comma-separated org logins that must stay owners in `organisation/members.yaml` |
-| `APP_ID` | `terraform-plan` | GitHub App used to post the plan comment and check-run |
-| `WORKSPACE` | `terraform-plan` | Terraform Cloud workspace |
+| Name | Purpose |
+|---|---|
+| `PROTECTED_OWNERS` | Comma-separated org logins that must stay owners in `organisation/members.yaml` |
+| `APP_ID` | GitHub App that posts the check run and the plan comment (needs **Checks: write**) |
+| `WORKSPACE` | Terraform Cloud workspace |
 
-The caller must also pass all three `workflow_call` secrets — these are declared on the reusable workflow, not looked up by the jobs:
+The caller must also pass all three `workflow_call` secrets — these are declared on the reusable workflow, not looked up by the job:
 
 | Name | Purpose |
 |---|---|
@@ -55,7 +59,7 @@ The caller must also pass all three `workflow_call` secrets — these are declar
 > `PROTECTED_OWNERS` is deployment config and is deliberately read from the environment rather than passed in by the caller, so that a pull request cannot weaken the rule it is validated against. Leaving it unset is not a way to opt out: whenever any `organisation/` config is present, `validate-org` fails. A config repo with no organisation config at all needs no list and passes.
 
 > [!WARNING]
-> The `plan` environment **must not** have required-reviewer or wait-timer protection rules. Protection rules apply per job, and `validate` now runs in this environment too — so an approval gate costs **two** approvals per pull request, and the author sees no validation feedback until the first one lands. Consumers that had reviewers on `plan` for the `terraform-plan` job need to remove them, or accept that cost.
+> The `plan` environment **must not** have required-reviewer or wait-timer protection rules. Everything, validation included, runs in this environment — so an approval gate holds up the whole pull request, and the check run does not even reach `in_progress` until someone approves.
 
 ### 🔍 `Drift Check` Workflow
 
