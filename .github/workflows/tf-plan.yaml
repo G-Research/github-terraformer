@@ -30,12 +30,46 @@ on:
         required: true
 
 jobs:
-  validate:
+  validate-and-plan:
     runs-on: ubuntu-latest
     environment: plan
     permissions:
       contents: read
     steps:
+      - name: Generate a token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Open check run
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        id: open-check
+        continue-on-error: true
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const detailsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const checkRun = await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: "Terraform plan",
+                head_sha: process.env.COMMIT_SHA,
+                status: "in_progress",
+                details_url: detailsUrl,
+                output: {
+                  title: "Terraform Plan running",
+                  summary: `Follow workflow logs for details: ${detailsUrl}`
+                }
+              });
+
+            core.setOutput('check-run-id', checkRun.data.id);
+
       - name: Checkout GCSS
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
@@ -53,60 +87,17 @@ jobs:
 
       - name: Validate repos/*.yaml
         uses: ./.github/actions/validate-repo-configs
+        id: validate-repos
         with:
           config-path: gcss_config
           fallback-schema-path: ${{ inputs.fallback_schema_path }}
 
       - name: Validate organisation/*.yaml
         uses: ./.github/actions/validate-org-configs
+        id: validate-org
         with:
           config-path: gcss_config
           protected-owners: ${{ vars.PROTECTED_OWNERS }}
-
-  terraform-plan:
-    needs: validate
-    runs-on: ubuntu-latest
-    environment: plan
-    permissions:
-      pull-requests: write
-      contents: read
-    steps:
-      - name: Generate a token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: generate-token
-        with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.app_private_key }}
-          owner: ${{ github.repository_owner }}
-
-      - name: Create in-progress check-run
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        env:
-          COMMIT_SHA: ${{ inputs.commit_sha }}
-        with:
-          github-token: ${{ steps.generate-token.outputs.token }}
-          script: |
-            const detailsUrl = `${context.serverUrl}/${context.payload.repository.full_name}/actions/runs/${context.runId}`;
-
-            await github.rest.checks.create({
-                owner: context.payload.repository.owner.login,
-                repo: context.payload.repository.name,
-                name: "Terraform plan",
-                head_sha: process.env.COMMIT_SHA,
-                status: "in_progress",
-                details_url: detailsUrl,
-                output: {
-                  title: "Terraform Plan running",
-                  summary: `Follow workflow logs for details: ${detailsUrl}`
-                }
-              });
-
-      - name: Checkout GCSS
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          repository: G-Research/github-terraformer
-          ref: ${{ inputs.gcss_ref }}
-          persist-credentials: false
 
       - name: GCSS config setup
         uses: ./.github/actions/gcss-config-setup
@@ -123,50 +114,74 @@ jobs:
           tfc-workspace: ${{ vars.WORKSPACE }}
           refresh: 'false'
 
-      - name: Post plan summary and handle check-run
+      - name: Report result
         if: always()
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
-          PLAN_SUMMARY: ${{ steps.graformer.outputs.plan-summary }}
-          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
-          PLAN_EXITCODE: ${{ steps.graformer.outputs.plan-exitcode }}
           COMMIT_SHA: ${{ inputs.commit_sha }}
+          CHECK_RUN_ID: ${{ steps.open-check.outputs.check-run-id }}
+          JOB_STATUS: ${{ job.status }}
+          VALIDATE_REPOS_OUTCOME: ${{ steps.validate-repos.outcome }}
+          VALIDATE_ORG_OUTCOME: ${{ steps.validate-org.outcome }}
+          PLAN_SUMMARY: ${{ steps.graformer.outputs.plan-summary }}
+          PLAN_EXITCODE: ${{ steps.graformer.outputs.plan-exitcode }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
-            function isPlanSuccessful() {
-              let error = false;
-              let planSummary = null;
-              
-              if(process.env.PLAN_EXITCODE === "1"){
-                error = true;
-              } else {
-                try {
-                  planSummary = JSON.parse(process.env.PLAN_SUMMARY);
-                } catch(e){
-                  error = true;
-                  console.log("Error parsing plan summary:", e);
-                }  
+            const detailsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            function checkRunOutcome() {
+              if (process.env.JOB_STATUS === "cancelled") {
+                return {
+                  conclusion: "cancelled",
+                  title: "Terraform Plan Cancelled",
+                  summary: `The run was cancelled before the Terraform plan completed. Please check workflow logs for details: ${detailsUrl}`,
+                  text: "Run cancelled"
+                };
               }
-            
-              return { error, planSummary };
+
+              if (process.env.VALIDATE_REPOS_OUTCOME === "failure" || process.env.VALIDATE_ORG_OUTCOME === "failure") {
+                return {
+                  conclusion: "failure",
+                  title: "Configuration Validation Failed",
+                  summary: `The configuration did not pass validation, so no Terraform plan was run. Please check workflow logs for details: ${detailsUrl}`,
+                  text: "Error validating configuration files",
+                  body: `Configuration validation failed, so no Terraform plan was run. Please check workflow logs for details: ${detailsUrl}`
+                };
+              }
+
+              const planFailed = {
+                conclusion: "failure",
+                title: "Terraform Plan Failed",
+                summary: `The Terraform plan did not complete successfully. Please check workflow logs for details: ${detailsUrl}`,
+                text: "Error running terraform plan",
+                body: `Error running terraform plan. Please check workflow logs for details: ${detailsUrl}`
+              };
+
+              if (process.env.JOB_STATUS !== "success" || process.env.PLAN_EXITCODE === "1") {
+                return planFailed;
+              }
+
+              try {
+                return { planSummary: JSON.parse(process.env.PLAN_SUMMARY) };
+              } catch(e) {
+                console.log("Error parsing plan summary:", e);
+                return planFailed;
+              }
             }
-            
+
             function formatResources(arr) {
               return arr?.length ? arr.join("\n") : "";
             }
-            
-            const detailsUrl = `${context.serverUrl}/${context.payload.repository.full_name}/actions/runs/${context.runId}`;
+
+            const outcome = checkRunOutcome();
             let conclusion, title, summary, text, body;
-            
-            const { error, planSummary } = isPlanSuccessful();
-            if (error) {
-              conclusion = "failure";
-              title = "Terraform Plan Failed";
-              summary = `The Terraform plan did not complete successfully. Please check workflow logs for details: ${detailsUrl}`;
-              text = "Error running terraform plan";
-              body = `Error running terraform plan. Please check workflow logs for details: ${detailsUrl}`;
+
+            if (!outcome.planSummary) {
+              ({ conclusion, title, summary, text, body } = outcome);
             } else {
+              const planSummary = outcome.planSummary;
               const recreateCount = planSummary.recreate?.length || 0;
               const updateCount = planSummary.update?.length || 0;
               const importCount = planSummary.import?.length || 0;
@@ -234,14 +249,14 @@ jobs:
               body = body.trim();
             
               conclusion = "success";
-            
+
               switch (process.env.PLAN_EXITCODE) {
-                case "0":      
+                case "0":
                   title = "Terraform plan: no changes";
                   summary = `Terraform executed successfully with **no changes** required. Please check workflow logs for details: ${detailsUrl}`;
                   text = "No infrastructure changes detected";
                   break;
-                case "2":
+                default:
                   title = `Terraform plan: ${planResultSummary}`;
                   summary = `Terraform executed successfully and **changes are required**. Please check workflow logs for details: ${detailsUrl}`;
                   text = body;
@@ -251,28 +266,47 @@ jobs:
                   break;
               }
             }
-            
-            const prNumber = process.env.PR_NUMBER;
-            if (prNumber) {
-              await github.rest.issues.createComment({
-                owner: context.payload.repository.owner.login,
-                repo: context.payload.repository.name,
-                issue_number: prNumber,
-                body,
+
+            const output = { title, summary, text };
+            const checkRunId = process.env.CHECK_RUN_ID;
+
+            if (checkRunId) {
+              await github.rest.checks.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                check_run_id: Number(checkRunId),
+                status: "completed",
+                conclusion: conclusion,
+                details_url: detailsUrl,
+                output: output
+              });
+            } else {
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: "Terraform plan",
+                head_sha: process.env.COMMIT_SHA,
+                status: "completed",
+                conclusion: conclusion,
+                details_url: detailsUrl,
+                output: output
               });
             }
-            
-            await github.rest.checks.create({
-              owner: context.payload.repository.owner.login,
-              repo: context.payload.repository.name,
-              name: "Terraform plan",
-              head_sha: process.env.COMMIT_SHA,
-              status: "completed",
-              conclusion: conclusion,
-              details_url: detailsUrl,
-              output: {
-                title: title,
-                summary: summary,
-                text: text
+
+            const prNumber = process.env.PR_NUMBER;
+            if (body && prNumber) {
+              if (body.length > 65000) {
+                body = `Plan output is too big to post as a comment. Please check the workflow logs for details: ${detailsUrl}`;
               }
-            });
+
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body,
+                });
+              } catch(e) {
+                core.warning(`Failed to post plan summary comment: ${e.message}`);
+              }
+            }
