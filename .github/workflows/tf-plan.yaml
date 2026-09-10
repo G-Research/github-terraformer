@@ -146,7 +146,8 @@ jobs:
                   conclusion: "failure",
                   title: "Configuration Validation Failed",
                   summary: `The configuration did not pass validation, so no Terraform plan was run. Please check workflow logs for details: ${detailsUrl}`,
-                  text: "Error validating configuration files"
+                  text: "Error validating configuration files",
+                  body: `Configuration validation failed, so no Terraform plan was run. Please check workflow logs for details: ${detailsUrl}`
                 };
               }
 

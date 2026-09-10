@@ -33,7 +33,7 @@
     1. Opens a check run named **`Terraform plan`** on the head commit, `in_progress`, before any work happens.
     2. Validates `repos/*.yaml` against the repository schema and `organisation/*.yaml` against the teams/members schemas and cross-file rules — including the protected-owner rule, which fails the PR if a protected identity is removed from or demoted in `members.yaml`.
     3. Runs `terraform plan` on Terraform Cloud. Like every later step it is skipped once validation has failed, so an invalid config never reaches Terraform.
-    4. `Report result` runs on every path and concludes that same check run exactly once: `success` with the plan summary, `failure` for a validation or plan failure, `cancelled` for a cancelled run. It posts the plan summary as a PR comment whenever the plan actually ran.
+    4. `Report result` runs on every path and concludes that same check run exactly once: `success` with the plan summary, `failure` for a validation or plan failure, `cancelled` for a cancelled run. It posts a PR comment on any failure (the plan summary on success, or an error pointing at the logs when validation or the plan fails); a cancelled run posts no comment.
 
 `Terraform plan` is the check to list as a required status check. It is opened up front and always concluded, so a failed validation now reports a failed check instead of leaving the pull request waiting on a check that never arrives.
 
