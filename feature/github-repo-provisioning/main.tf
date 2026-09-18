@@ -177,6 +177,9 @@ module "repository" {
   has_discussions         = try(each.value.has_discussions,         null)
   is_template             = try(each.value.is_template,             false)
   default_branch          = try(each.value.default_branch,          "")
+  # TEST-ONLY HARDCODE: create the non-main default branch via the `branches` variable
+  # for a single throwaway repo, so we can test whether branch-first creation works.
+  branches                = each.key == "db-test-master" ? [{ name = "master", source_branch = "main" }] : []
   archived                = try(each.value.archived,                false)
   topics                  = try(each.value.topics,                  [])
   archive_on_destroy      = try(each.value.archive_on_destroy,      null)
