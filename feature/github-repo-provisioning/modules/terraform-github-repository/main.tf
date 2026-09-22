@@ -169,7 +169,25 @@ resource "github_repository" "repository" {
 # ---------------------------------------------------------------------------------------------------------------------
 
 locals {
-  branches_map = { for b in var.branches : b.name => b }
+  # Branches explicitly requested via var.branches.
+  requested_branches_map = { for b in var.branches : b.name => b }
+
+  # On a freshly created repo, auto_init produces a single "main" branch. Pointing the default
+  # at any other branch (e.g. "master") fails with a 422 because that branch does not exist yet.
+  # Inject the desired default into the branches to be created (branched off the auto-init "main")
+  # so github_branch_default can point at it. Skip when the default is "main" (already the
+  # auto-init branch) or when it is already listed explicitly in var.branches.
+  default_branch_needs_creation = (
+    local.auto_init &&
+    local.default_branch != null &&
+    local.default_branch != "main" &&
+    !contains(keys(local.requested_branches_map), local.default_branch)
+  )
+
+  branches_map = merge(
+    local.requested_branches_map,
+    local.default_branch_needs_creation ? { (local.default_branch) = { name = local.default_branch } } : {}
+  )
 }
 
 resource "github_branch" "branch" {

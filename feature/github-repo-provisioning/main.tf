@@ -44,6 +44,17 @@ import {
   id = each.key
 }
 
+# A non-main default branch is injected into the module's branches map (see the vendored
+# module), which creates a github_branch resource for it. For repos that already exist, that
+# branch is already present on GitHub, so import it instead of creating it (which would fail
+# with "Reference already exists"). New repos are not in generated_repos, so they still create
+# the branch off the auto-init "main".
+import {
+  for_each = { for k, cfg in local.generated_repos : k => cfg if try(cfg.default_branch, "main") != "main" }
+  to = module.repository[each.key].github_branch.branch[each.value.default_branch]
+  id = "${each.key}:${each.value.default_branch}"
+}
+
 locals {
   flattened_generated_branch_protections_v4 = flatten([
     for repo, config in local.generated_repos : [
