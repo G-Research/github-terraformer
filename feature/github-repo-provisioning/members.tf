@@ -60,7 +60,7 @@ resource "github_membership" "member" {
 resource "github_team_membership" "membership" {
   for_each = local.member_team_pairs
 
-  team_id  = github_team.team[each.value.team].id
+  team_id  = local.team_ids[each.value.team]
   username = each.value.username
   role     = each.value.role
 }
