@@ -28,19 +28,19 @@ func TestOrgTeamDecode(t *testing.T) {
 	assert.Equal(t, "My_Team", teams[1].GetParent().GetName())
 }
 
-func TestRejectNestedTeams(t *testing.T) {
-	flat := []*orgTeam{
-		{Team: github.Team{Name: github.String("platform")}},
-		{Team: github.Team{Name: github.String("security")}},
+func TestBuildTeamsConfigCapturesParent(t *testing.T) {
+	ghTeams := []*orgTeam{
+		{Team: github.Team{Name: github.String("platform"), Slug: github.String("platform"), Privacy: github.String("closed")}, NotificationSetting: NotificationsEnabled},
+		{Team: github.Team{Name: github.String("oncall"), Slug: github.String("oncall"), Privacy: github.String("closed"), Parent: &github.Team{Name: github.String("platform")}}, NotificationSetting: NotificationsEnabled},
 	}
-	assert.NoError(t, rejectNestedTeams(flat))
-
-	nested := []*orgTeam{
-		{Team: github.Team{Name: github.String("platform")}},
-		{Team: github.Team{Name: github.String("oncall"), Parent: &github.Team{Name: github.String("platform")}}},
-	}
-	err := rejectNestedTeams(nested)
-	assert.EqualError(t, err, `team "oncall" has parent team "platform": nested teams are not supported, cannot import`)
+	cfg, err := buildTeamsConfig(ghTeams)
+	assert.NoError(t, err)
+	assert.Len(t, cfg.Teams, 2)
+	// buildTeamsConfig sorts by name: oncall, platform
+	assert.Equal(t, "oncall", cfg.Teams[0].Name)
+	assert.NotNil(t, cfg.Teams[0].Parent)
+	assert.Equal(t, "platform", *cfg.Teams[0].Parent)
+	assert.Nil(t, cfg.Teams[1].Parent)
 }
 
 func TestBuildTeamsConfig(t *testing.T) {

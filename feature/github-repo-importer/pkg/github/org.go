@@ -32,9 +32,6 @@ func ImportOrg(org string) (*TeamsConfig, *MembersConfig, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := rejectNestedTeams(ghTeams); err != nil {
-		return nil, nil, err
-	}
 
 	memberLogins, err := listMemberLogins(ctx, org, "all")
 	if err != nil {
@@ -80,15 +77,6 @@ func listAllTeams(ctx context.Context, org string) ([]*orgTeam, error) {
 	return all, nil
 }
 
-func rejectNestedTeams(teams []*orgTeam) error {
-	for _, t := range teams {
-		if t.Parent != nil {
-			return fmt.Errorf("team %q has parent team %q: nested teams are not supported, cannot import", t.GetName(), t.GetParent().GetName())
-		}
-	}
-	return nil
-}
-
 func buildTeamsConfig(ghTeams []*orgTeam) (*TeamsConfig, error) {
 	teams := make([]Team, 0, len(ghTeams))
 	for _, t := range ghTeams {
@@ -102,6 +90,11 @@ func buildTeamsConfig(ghTeams []*orgTeam) (*TeamsConfig, error) {
 		if desc := t.GetDescription(); desc != "" {
 			d := desc
 			team.Description = &d
+		}
+
+		if parent := t.GetParent(); parent != nil {
+			p := parent.GetName()
+			team.Parent = &p
 		}
 
 		if t.GetPrivacy() == "secret" {

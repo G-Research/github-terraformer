@@ -15,6 +15,7 @@ type Team struct {
 	Description   *string `yaml:"description,omitempty"`
 	Visibility    string  `yaml:"visibility,omitempty" jsonschema:"enum=visible,enum=secret"`
 	Notifications *bool   `yaml:"notifications,omitempty"`
+	Parent        *string `yaml:"parent,omitempty" jsonschema:"description=Name of the parent team (must be another team defined in teams.yaml). Omit for a top-level team."`
 }
 
 func (c *TeamsConfig) Validate() []error {

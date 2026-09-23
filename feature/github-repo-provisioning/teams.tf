@@ -27,4 +27,8 @@ resource "github_team" "team" {
   description          = try(each.value.description, null)
   privacy              = try(each.value.visibility, "visible") == "secret" ? "secret" : "closed"
   notification_setting = coalesce(try(each.value.notifications, true), true) ? "notifications_enabled" : "notifications_disabled"
+  # Nest under a parent team, referenced by name (another team in teams.yaml). Resolve to the
+  # parent's slug via a config lookup (not a github_team.team[...] reference, which would create
+  # a self-cycle across for_each instances). parent_team_id accepts a slug.
+  parent_team_id = try(local.teams_by_name[each.value.parent].slug, null)
 }
