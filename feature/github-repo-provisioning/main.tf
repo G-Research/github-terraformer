@@ -44,6 +44,12 @@ import {
   id = each.key
 }
 
+import {
+  for_each = { for k, cfg in local.generated_repos : k => cfg if try(cfg.default_branch, "main") != "main" }
+  to = module.repository[each.key].github_branch.branch[each.value.default_branch]
+  id = "${each.key}:${each.value.default_branch}"
+}
+
 locals {
   flattened_generated_branch_protections_v4 = flatten([
     for repo, config in local.generated_repos : [

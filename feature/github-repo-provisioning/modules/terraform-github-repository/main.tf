@@ -169,7 +169,25 @@ resource "github_repository" "repository" {
 # ---------------------------------------------------------------------------------------------------------------------
 
 locals {
-  branches_map = { for b in var.branches : b.name => b }
+  # Branches explicitly requested via var.branches.
+  requested_branches_map = { for b in var.branches : b.name => b }
+
+  # On a freshly created repo, auto_init produces a single "main" branch. Pointing the default
+  # at any other branch (e.g. "master") fails with a 422 because that branch does not exist yet.
+  # Inject the desired default into the branches to be created (branched off the auto-init "main")
+  # so github_branch_default can point at it. Skip when the default is "main" (already the
+  # auto-init branch) or when it is already listed explicitly in var.branches.
+  default_branch_needs_creation = (
+    local.auto_init &&
+    local.default_branch != null &&
+    local.default_branch != "main" &&
+    !contains(keys(local.requested_branches_map), local.default_branch)
+  )
+
+  branches_map = merge(
+    local.requested_branches_map,
+    local.default_branch_needs_creation ? { (local.default_branch) = { name = local.default_branch } } : {}
+  )
 }
 
 resource "github_branch" "branch" {
@@ -192,20 +210,7 @@ resource "github_branch_default" "default" {
   repository = github_repository.repository.name
   branch     = local.default_branch
 
-  # On a freshly created repo, auto_init produces a single "main" branch. Pointing the
-  # default at any other branch (e.g. "master") fails with a 422 because that branch does
-  # not exist yet. Rename the auto-init branch to the desired default in that case. We do
-  # not rename when the target is "main" (already the auto-init branch) or when it is an
-  # explicitly managed branch (github_branch.branch), which is created separately above.
-  rename = local.default_branch != "main" && !contains(keys(local.branches_map), local.default_branch)
-
   depends_on = [github_branch.branch]
-
-  # rename only matters at creation time; ignore it afterwards so existing/imported repos
-  # whose default already matches do not show a perpetual diff.
-  lifecycle {
-    ignore_changes = [rename]
-  }
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
