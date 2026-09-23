@@ -247,7 +247,24 @@ jobs:
               }
               
               body = body.trim();
-            
+
+              // Demoting a non-main default branch deletes its managed github_branch, which GitHub
+              // rejects at apply ("cannot delete the default branch"). Detect it and link the runbook.
+              const demotedDefaults = (planSummary.delete || [])
+                .map(a => (a.match(/module\.repository\[[^\]]*\]\.github_branch\.branch\[[^\]]*\]/) || [])[0])
+                .filter(Boolean);
+              if (demotedDefaults.length > 0) {
+                const docUrl = `${context.serverUrl}/G-Research/github-terraformer/blob/main/docs/switching-default-branch-to-main.md`;
+                const warning = [
+                  "> [!WARNING]",
+                  "> This plan deletes a managed default branch, which **will fail to apply** — GitHub does not allow deleting a repository's default branch.",
+                  "> If you are switching a repository's default branch back to `main`, follow the required steps first: [switching a default branch back to main](" + docUrl + ").",
+                  ">",
+                  "> Affected: " + demotedDefaults.map(a => "`" + a + "`").join(", "),
+                ].join("\n");
+                body = warning + "\n\n" + body;
+              }
+
               conclusion = "success";
 
               switch (process.env.PLAN_EXITCODE) {
@@ -264,6 +281,16 @@ jobs:
                     text = "Log output is too big. Please check the workflow logs for details.";
                   }
                   break;
+              }
+
+              // A default-branch demotion cannot be applied (GitHub blocks deleting a default
+              // branch). Gate the merge: mark the check action_required until the runbook is followed.
+              if (demotedDefaults.length > 0) {
+                const runbook = `${context.serverUrl}/G-Research/github-terraformer/blob/main/docs/switching-default-branch-to-main.md`;
+                conclusion = "action_required";
+                title = "Terraform plan: default-branch switch needs manual steps";
+                summary = `This plan deletes a repository's default branch and cannot be applied as-is. Follow the runbook before merging: ${runbook}`;
+                text = body;
               }
             }
 
