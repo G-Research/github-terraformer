@@ -103,7 +103,7 @@ Terraform plan: 0 to import, 0 to add, 1 to change, 0 to destroy.
 with a `Resources to update:` section and **no** `Resources to recreate:` section. The plan job counts recreates into both the add and the destroy totals, so `0 to destroy` is the check that matters.
 
 > [!NOTE]
-> Organisation resources have no display-name mapping in the plan summary, so they render as `unknown type github_team. resource address: github_team.team["New Name"]`. That is expected, not a failure.
+> Organisation resources render in the plan summary with a display name, e.g. `github_team :: New Name` and `github_team_membership :: alice/New Name (maintainer)`.
 
 Merge PR 1. The apply renames the team on GitHub and its slug becomes `new-slug`.
 
