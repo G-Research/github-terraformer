@@ -17,8 +17,11 @@ locals {
   # (a self-reference across instances cycles). Supports one level of nesting.
   root_teams_by_name  = { for k, t in local.teams_by_name : k => t if try(t.parent, null) == null }
   child_teams_by_name = { for k, t in local.teams_by_name : k => t if try(t.parent, null) != null }
-  staged_root_teams   = { for k, t in local.staged_teams_by_name : k => t if try(t.parent, null) == null }
-  staged_child_teams  = { for k, t in local.staged_teams_by_name : k => t if try(t.parent, null) != null }
+  # Bucket staged teams by the MERGED result (final config wins), not the staged file's own
+  # parent — otherwise, when a team's parent differs between staged and final (e.g. re-import
+  # after a parent change on GitHub), the import target address wouldn't match the resource.
+  staged_root_teams  = { for k, t in local.staged_teams_by_name : k => t if contains(keys(local.root_teams_by_name), k) }
+  staged_child_teams = { for k, t in local.staged_teams_by_name : k => t if contains(keys(local.child_teams_by_name), k) }
 
   # Team name -> id across both resources, for github_team_membership and any other lookups.
   team_ids = merge(
