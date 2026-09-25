@@ -25,6 +25,10 @@
         },
         "notifications": {
           "type": "boolean"
+        },
+        "parent": {
+          "type": "string",
+          "description": "Name of the parent team (must be another team defined in teams.yaml). Omit for a top-level team."
         }
       },
       "additionalProperties": false,
