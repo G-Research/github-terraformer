@@ -137,3 +137,29 @@ func TestBuildMembersConfigEmptyOrg(t *testing.T) {
 	config := buildMembersConfig(nil, nil, nil)
 	assert.Empty(t, config.Members)
 }
+
+func TestTeamMemberDecodeSkipsInherited(t *testing.T) {
+	// GET orgs/{org}/teams/{slug}/members returns inherited (child-team) members too.
+	payload := `[
+		{"login":"direct-user","inherited":false},
+		{"login":"child-user","inherited":true}
+	]`
+
+	var members []teamMember
+	err := json.Unmarshal([]byte(payload), &members)
+	assert.NoError(t, err)
+	assert.Len(t, members, 2)
+	assert.Equal(t, "direct-user", members[0].GetLogin())
+	assert.False(t, members[0].Inherited)
+	assert.True(t, members[1].Inherited)
+
+	// Only direct members belong in a parent team's roster.
+	var kept []string
+	for _, m := range members {
+		if m.Inherited {
+			continue
+		}
+		kept = append(kept, m.GetLogin())
+	}
+	assert.Equal(t, []string{"direct-user"}, kept)
+}

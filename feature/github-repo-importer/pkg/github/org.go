@@ -156,21 +156,39 @@ func fetchTeamRosters(ctx context.Context, org string, ghTeams []*orgTeam) ([]te
 	return rosters, nil
 }
 
+// teamMember is a team member as returned by GET orgs/{org}/teams/{slug}/members.
+// go-github v67 does not map the "inherited" flag, so we decode it ourselves: the
+// endpoint returns members of child teams too (GitHub: "Team members will include the
+// members of child teams"), and those must not be recorded as direct members of the parent.
+type teamMember struct {
+	github.User
+	Inherited bool `json:"inherited"`
+}
+
 func listTeamMemberLogins(ctx context.Context, org, teamSlug, role string) ([]string, error) {
 	var logins []string
-	opts := &github.TeamListTeamMembersOptions{Role: role, ListOptions: github.ListOptions{PerPage: DefaultPageSize}}
+	page := 1
 	for {
-		users, resp, err := v3client.Teams.ListTeamMembersBySlug(ctx, org, teamSlug, opts)
+		req, err := v3client.NewRequest("GET", fmt.Sprintf("orgs/%s/teams/%s/members?role=%s&per_page=%d&page=%d", org, teamSlug, role, DefaultPageSize, page), nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build team members request for %q: %w", teamSlug, err)
+		}
+		var members []teamMember
+		resp, err := v3client.Do(ctx, req, &members)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list %s of team %q: %w", role, teamSlug, err)
 		}
-		for _, u := range users {
-			logins = append(logins, u.GetLogin())
+		for _, m := range members {
+			if m.Inherited {
+				// Inherited from a child team — not a direct member of this team.
+				continue
+			}
+			logins = append(logins, m.GetLogin())
 		}
 		if resp.NextPage == 0 {
 			break
 		}
-		opts.Page = resp.NextPage
+		page = resp.NextPage
 	}
 	return logins, nil
 }
