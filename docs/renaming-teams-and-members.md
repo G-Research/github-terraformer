@@ -73,14 +73,18 @@ Prepare them now; merge neither yet.
 ### 2. Find every affected state address
 
 ```bash
-terraform state list | grep -E 'github_team\.team|github_team_membership\.membership'
+terraform state list | grep -E 'github_team\.(team|child_team)|github_team_membership\.membership'
 ```
 
-You are looking for `github_team.team["Old Name"]` plus one `github_team_membership.membership["<username>/Old Name"]` for every member who lists the team in `organisation/members.yaml`.
+You are looking for the team resource plus one `github_team_membership.membership["<username>/Old Name"]` for every member who lists the team in `organisation/members.yaml`.
+
+> [!IMPORTANT]
+> A **nested** team (one with a `parent`) lives at `github_team.child_team["Old Name"]`, not `github_team.team["Old Name"]` — top-level teams are `github_team.team`, nested teams are `github_team.child_team`. Use the address the team actually has in the move commands below. Everything else about the rename is identical.
 
 ### 3. Move them to the new key
 
 ```bash
+# use github_team.child_team[...] on both sides for a nested team
 terraform state mv 'github_team.team["Old Name"]' 'github_team.team["New Name"]'
 ```
 
