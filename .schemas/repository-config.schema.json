@@ -290,9 +290,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "include"
-      ]
+      "minProperties": 1
     },
     "RepositoryTemplate": {
       "properties": {
