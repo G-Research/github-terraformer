@@ -96,9 +96,24 @@ func TestBuildRepositoryConfigSchema(t *testing.T) {
 		}
 	}
 
-	refNameDef, ok := schema.Definitions["RefNameCondition"]
+	// RefNameCondition is asserted in detail by TestRefNameConditionSchema.
+}
+
+func TestRefNameConditionSchema(t *testing.T) {
+	schema := BuildRepositoryConfigSchema()
+
+	def, ok := schema.Definitions["RefNameCondition"]
 	assert.True(t, ok, "schema should define RefNameCondition")
-	if ok {
-		assert.Equal(t, []string{"include"}, refNameDef.Required, "an include-only ref_name condition is valid")
+	if !ok {
+		return
+	}
+
+	// include must NOT be required — an exclude-only condition ("all refs except these") is valid.
+	assert.NotContains(t, def.Required, "include", "include should not be required")
+	assert.Empty(t, def.Required, "neither include nor exclude should be required individually")
+
+	// ...but at least one of the two must be present.
+	if assert.NotNil(t, def.MinProperties, "RefNameCondition should set minProperties") {
+		assert.Equal(t, uint64(1), *def.MinProperties)
 	}
 }

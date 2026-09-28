@@ -1,5 +1,7 @@
 package github
 
+import "github.com/invopop/jsonschema"
+
 type Ruleset struct {
 	ID           int64         `yaml:"id" jsonschema:"-"`
 	Enforcement  string        `yaml:"enforcement" jsonschema:"enum=disabled,enum=active,enum=evaluate"`
@@ -80,5 +82,13 @@ type Conditions struct {
 
 type RefNameCondition struct {
 	Exclude []string `yaml:"exclude,omitempty" jsonschema:"minItems=1"`
-	Include []string `yaml:"include,omitempty" jsonschema:"minItems=1,required"`
+	Include []string `yaml:"include,omitempty" jsonschema:"minItems=1"`
+}
+
+// JSONSchemaExtend requires at least one of include/exclude on a ref_name condition.
+// Both are individually optional (an exclude-only condition — "all refs except these" — is a
+// valid GitHub ruleset shape), but a condition with neither filters nothing.
+func (RefNameCondition) JSONSchemaExtend(s *jsonschema.Schema) {
+	minProps := uint64(1)
+	s.MinProperties = &minProps
 }
