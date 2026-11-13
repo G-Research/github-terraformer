@@ -120,18 +120,24 @@ locals {
 
   all_collaborators = merge(local.all_generated_collaborators, local.all_new_collaborators)
   all_teams = merge(local.all_generated_teams, local.all_new_teams)
+
+  final_collaborator_keys = { for repo, collaborators in local.all_collaborators : repo => {
+    for collaborator in collaborators : lower(collaborator.username) => collaborator.username...
+  } }
+
+  collaborator_imports = { for item in flatten([for repo, collaborators in local.all_generated_collaborators : [
+    for collaborator in collaborators : {
+      repo     = repo
+      username = collaborator.username
+      key      = try(local.final_collaborator_keys[repo][lower(collaborator.username)][0], null)
+    }
+  ]]) : "${item.repo}:${item.key}" => item if item.key != null }
 }
 
 import {
-  for_each = toset(flatten([for repo, collaborators in local.all_generated_collaborators : [
-    for collaborator in collaborators : {
-      repo      = repo
-      username  = collaborator.username
-      permission = collaborator.permission
-    }
-  ]]))
+  for_each = local.collaborator_imports
 
-  to = module.repository[each.value.repo].github_repository_collaborator.collaborator[each.value.username]
+  to = module.repository[each.value.repo].github_repository_collaborator.collaborator[each.value.key]
   id = "${each.value.repo}:${each.value.username}"
 }
 
