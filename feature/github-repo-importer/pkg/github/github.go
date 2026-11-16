@@ -563,12 +563,50 @@ func convertRules(ghRules []*github.RepositoryRule, appActors map[int64]string) 
 		case RuleCodeScanning:
 			rules.RequiredCodeScanning = convertRequiredCodeScanning(r.Parameters)
 
+		case RuleMergeQueue:
+			mergeQueue, err := convertMergeQueue(r.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert merge queue %v: %v", r.Parameters, err)
+			}
+			rules.MergeQueue = mergeQueue
+
 		default:
 			// Handle unknown rule types
 			fmt.Printf("Unknown rule type: %s\n", r.Type)
 		}
 	}
 	return &rules, nil
+}
+
+// convertMergeQueue maps the GitHub API merge_queue parameters onto the UI-named
+// MergeQueueRule fields. The API's grouping_strategy enum becomes the UI's
+// "require all queue entries to pass required checks" checkbox (ALLGREEN == true).
+func convertMergeQueue(mq *json.RawMessage) (*MergeQueueRule, error) {
+	if mq == nil {
+		return nil, nil
+	}
+	var api struct {
+		CheckResponseTimeoutMinutes  *int   `json:"check_response_timeout_minutes"`
+		GroupingStrategy             string `json:"grouping_strategy"`
+		MaxEntriesToBuild            *int   `json:"max_entries_to_build"`
+		MaxEntriesToMerge            *int   `json:"max_entries_to_merge"`
+		MergeMethod                  string `json:"merge_method"`
+		MinEntriesToMerge            *int   `json:"min_entries_to_merge"`
+		MinEntriesToMergeWaitMinutes *int   `json:"min_entries_to_merge_wait_minutes"`
+	}
+	if err := json.Unmarshal(*mq, &api); err != nil {
+		return nil, fmt.Errorf("Failed to unmarshal merge queue: %v\n", err)
+	}
+	requireAllGreen := api.GroupingStrategy == "ALLGREEN"
+	return &MergeQueueRule{
+		MergeMethod:                    api.MergeMethod,
+		BuildConcurrency:               api.MaxEntriesToBuild,
+		MinimumGroupSize:               api.MinEntriesToMerge,
+		MaximumGroupSize:               api.MaxEntriesToMerge,
+		WaitTimeToMeetMinimumGroupSize: api.MinEntriesToMergeWaitMinutes,
+		RequireAllQueueEntriesToPassRequiredChecks: &requireAllGreen,
+		StatusCheckTimeout:                         api.CheckResponseTimeoutMinutes,
+	}, nil
 }
 
 func convertUpdateRequiresFetchAndMerge(parameters *json.RawMessage) (*bool, error) {

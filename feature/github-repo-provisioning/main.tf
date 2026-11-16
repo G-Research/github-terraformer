@@ -369,6 +369,20 @@ locals {
     }
   }
 
+  # GitHub's merge_queue grouping_strategy enum, keyed by the UI's
+  # "require all queue entries to pass required checks" checkbox.
+  merge_queue_grouping_strategy = {
+    true  = "ALLGREEN"
+    false = "HEADGREEN"
+  }
+
+  # GitHub's merge_queue merge_method enum values.
+  merge_queue_merge_method = {
+    MERGE  = "MERGE"
+    SQUASH = "SQUASH"
+    REBASE = "REBASE"
+  }
+
   apps_map = {
     for app in yamldecode(file("./app-list.yaml")).apps :
     "app/${app.app_owner}/${app.app_slug}" => {
@@ -535,6 +549,20 @@ resource "github_repository_ruleset" "ruleset" {
             security_alerts_threshold = required_code_scanning_tool.value.security_alerts_threshold
           }
         }
+      }
+    }
+
+    dynamic "merge_queue" {
+      for_each = try(each.value.ruleset.rules.merge_queue, null) != null ? [each.value.ruleset.rules.merge_queue] : []
+
+      content {
+        merge_method                      = try(local.merge_queue_merge_method[merge_queue.value.merge_method], null)
+        max_entries_to_build              = try(merge_queue.value.build_concurrency, null)
+        min_entries_to_merge              = try(merge_queue.value.minimum_group_size, null)
+        max_entries_to_merge              = try(merge_queue.value.maximum_group_size, null)
+        min_entries_to_merge_wait_minutes = try(merge_queue.value.wait_time_to_meet_minimum_group_size, null)
+        check_response_timeout_minutes    = try(merge_queue.value.status_check_timeout, null)
+        grouping_strategy                 = local.merge_queue_grouping_strategy[tostring(try(merge_queue.value.require_all_queue_entries_to_pass_required_checks, true))]
       }
     }
   }

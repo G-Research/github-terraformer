@@ -19,6 +19,7 @@ type Rule struct {
 	CommitterEmailPattern     *PatternRule          `yaml:"committer_email_pattern,omitempty"`
 	Creation                  *bool                 `yaml:"creation,omitempty"`
 	Deletion                  *bool                 `yaml:"deletion,omitempty"`
+	MergeQueue                *MergeQueueRule       `yaml:"merge_queue,omitempty"`
 	NonFastForward            *bool                 `yaml:"non_fast_forward,omitempty"`
 	PullRequest               *PullRequestRule      `yaml:"pull_request,omitempty"`
 	RequiredDeployments       *RequiredDeployments  `yaml:"required_deployments,omitempty"`
@@ -63,6 +64,20 @@ type RequiredCheck struct {
 
 type RequiredCodeScanning struct {
 	RequiredCodeScanningTool []RequiredCodeScanningTool `yaml:"required_code_scanning_tool,omitempty" json:"code_scanning_tools" jsonschema:"minItems=1,required"`
+}
+
+// MergeQueueRule is named after the GitHub UI (the YAML is the source of truth).
+// The importer maps the GitHub API parameters onto these fields, and the Terraform
+// module maps these fields onto the provider's merge_queue attributes. Timeouts are
+// in minutes (matching the "(minutes)" hints in the UI).
+type MergeQueueRule struct {
+	MergeMethod                                string `yaml:"merge_method,omitempty" jsonschema:"enum=MERGE,enum=SQUASH,enum=REBASE"`
+	BuildConcurrency                           *int   `yaml:"build_concurrency,omitempty"`
+	MinimumGroupSize                           *int   `yaml:"minimum_group_size,omitempty"`
+	MaximumGroupSize                           *int   `yaml:"maximum_group_size,omitempty"`
+	WaitTimeToMeetMinimumGroupSize             *int   `yaml:"wait_time_to_meet_minimum_group_size,omitempty"`
+	RequireAllQueueEntriesToPassRequiredChecks *bool  `yaml:"require_all_queue_entries_to_pass_required_checks,omitempty"`
+	StatusCheckTimeout                         *int   `yaml:"status_check_timeout,omitempty"`
 }
 
 type RequiredCodeScanningTool struct {
