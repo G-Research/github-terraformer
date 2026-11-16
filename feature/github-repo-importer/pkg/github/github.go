@@ -935,14 +935,58 @@ type PermissionGroups struct {
 	Admin    []string
 }
 
+// permissionGroupBuilder accumulates collaborator logins by role and produces a
+// PermissionGroups with every list sorted. Sorting keeps the generated YAML
+// deterministic regardless of the order the GitHub API returns entries in, which
+// prevents spurious drift from pure list reordering.
+type permissionGroupBuilder struct {
+	pull     []string
+	triage   []string
+	push     []string
+	maintain []string
+	admin    []string
+}
+
+// add files a login under the slice matching its role. Accepted collaborators
+// report a role name (e.g. from GetRoleName) and pending invitations report a
+// permission (GetPermissions); both use the same vocabulary — "read", "triage",
+// "write"/"push", "maintain", "admin" — so one mapping serves both sources.
+func (b *permissionGroupBuilder) add(login, role string) {
+	switch role {
+	case PermissionRead:
+		b.pull = append(b.pull, login)
+	case PermissionAdmin:
+		b.admin = append(b.admin, login)
+	case PermissionTriage:
+		b.triage = append(b.triage, login)
+	case PermissionPush, PermissionWrite:
+		b.push = append(b.push, login)
+	case PermissionMaintain:
+		b.maintain = append(b.maintain, login)
+	default:
+		fmt.Printf("unknown role name: %s\n", role)
+	}
+}
+
+// build returns the accumulated groups with each list sorted.
+func (b *permissionGroupBuilder) build() *PermissionGroups {
+	slices.Sort(b.pull)
+	slices.Sort(b.triage)
+	slices.Sort(b.push)
+	slices.Sort(b.maintain)
+	slices.Sort(b.admin)
+
+	return &PermissionGroups{
+		Pull:     b.pull,
+		Triage:   b.triage,
+		Push:     b.push,
+		Maintain: b.maintain,
+		Admin:    b.admin,
+	}
+}
+
 func CategorizeCollaborators(client *github.Client, owner, repo string, dumpManager *file.DumpManager) (*PermissionGroups, error) {
-	var (
-		pullCollaborators     []string
-		triageCollaborators   []string
-		pushCollaborators     []string
-		maintainCollaborators []string
-		adminCollaborators    []string
-	)
+	var builder permissionGroupBuilder
 
 	opts := &github.ListCollaboratorsOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -965,22 +1009,7 @@ func CategorizeCollaborators(client *github.Client, owner, repo string, dumpMana
 		}
 
 		for _, collaborator := range collaborators {
-			roleName := collaborator.GetRoleName()
-
-			switch roleName {
-			case PermissionRead:
-				pullCollaborators = append(pullCollaborators, collaborator.GetLogin())
-			case PermissionAdmin:
-				adminCollaborators = append(adminCollaborators, collaborator.GetLogin())
-			case PermissionTriage:
-				triageCollaborators = append(triageCollaborators, collaborator.GetLogin())
-			case PermissionPush, PermissionWrite:
-				pushCollaborators = append(pushCollaborators, collaborator.GetLogin())
-			case PermissionMaintain:
-				maintainCollaborators = append(maintainCollaborators, collaborator.GetLogin())
-			default:
-				fmt.Printf("unknown role name: %s\n", roleName)
-			}
+			builder.add(collaborator.GetLogin(), collaborator.GetRoleName())
 		}
 
 		if resp.NextPage == 0 {
@@ -990,13 +1019,39 @@ func CategorizeCollaborators(client *github.Client, owner, repo string, dumpMana
 		opts.Page = resp.NextPage
 	}
 
-	return &PermissionGroups{
-		Pull:     pullCollaborators,
-		Triage:   triageCollaborators,
-		Push:     pushCollaborators,
-		Maintain: maintainCollaborators,
-		Admin:    adminCollaborators,
-	}, nil
+	// Include pending (unaccepted) invitations. Terraform has already provisioned
+	// this access, so the invitee belongs in the config just like an accepted
+	// collaborator. Without this, a repo with an outstanding invite would be
+	// reported as drift until the invite is accepted.
+	invOpts := &github.ListOptions{PerPage: 100}
+
+	for {
+		invitations, resp, err := client.Repositories.ListInvitations(context.Background(), owner, repo, invOpts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch invitations: %w", err)
+		}
+
+		filename := fmt.Sprintf("invitations-page_%d.json", invOpts.Page+1)
+		if err := dumpManager.WriteJSONFile(filename, invitations); err != nil {
+			fmt.Printf("failed to write %q: %v\n", filename, err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
+		}
+
+		for _, invitation := range invitations {
+			builder.add(invitation.GetInvitee().GetLogin(), invitation.GetPermissions())
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		invOpts.Page = resp.NextPage
+	}
+
+	return builder.build(), nil
 }
 
 func CategorizeTeams(client *github.Client, owner, repo string, dumpManager *file.DumpManager) (*PermissionGroups, error) {
