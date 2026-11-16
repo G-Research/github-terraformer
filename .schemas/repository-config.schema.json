@@ -178,6 +178,38 @@
         "enabled"
       ]
     },
+    "MergeQueueRule": {
+      "properties": {
+        "merge_method": {
+          "type": "string",
+          "enum": [
+            "MERGE",
+            "SQUASH",
+            "REBASE"
+          ]
+        },
+        "build_concurrency": {
+          "type": "integer"
+        },
+        "minimum_group_size": {
+          "type": "integer"
+        },
+        "maximum_group_size": {
+          "type": "integer"
+        },
+        "wait_time_to_meet_minimum_group_size": {
+          "type": "integer"
+        },
+        "require_all_queue_entries_to_pass_required_checks": {
+          "type": "boolean"
+        },
+        "status_check_timeout": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Pages": {
       "allOf": [
         {
@@ -693,6 +725,9 @@
         },
         "deletion": {
           "type": "boolean"
+        },
+        "merge_queue": {
+          "$ref": "#/$defs/MergeQueueRule"
         },
         "non_fast_forward": {
           "type": "boolean"

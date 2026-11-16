@@ -17,6 +17,7 @@ const (
 	RuleBranchNamePattern         = "branch_name_pattern"
 	RuleTagNamePattern            = "tag_name_pattern"
 	RuleCodeScanning              = "code_scanning"
+	RuleMergeQueue                = "merge_queue"
 
 	// Visibility
 	VisibilityPrivate  = "private"

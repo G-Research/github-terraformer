@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"os/exec"
 	"testing"
 
@@ -299,4 +300,38 @@ func TestResolvePages(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestConvertMergeQueue(t *testing.T) {
+	raw := json.RawMessage(`{
+		"check_response_timeout_minutes": 60,
+		"grouping_strategy": "ALLGREEN",
+		"max_entries_to_build": 5,
+		"max_entries_to_merge": 5,
+		"merge_method": "SQUASH",
+		"min_entries_to_merge": 1,
+		"min_entries_to_merge_wait_minutes": 5
+	}`)
+
+	mq, err := convertMergeQueue(&raw)
+	assert.NoError(t, err)
+	assert.NotNil(t, mq)
+	assert.Equal(t, "SQUASH", mq.MergeMethod)
+	assert.Equal(t, 5, *mq.BuildConcurrency)
+	assert.Equal(t, 1, *mq.MinimumGroupSize)
+	assert.Equal(t, 5, *mq.MaximumGroupSize)
+	assert.Equal(t, 5, *mq.WaitTimeToMeetMinimumGroupSize)
+	assert.Equal(t, 60, *mq.StatusCheckTimeout)
+	// ALLGREEN maps to the "require all queue entries to pass" checkbox = true
+	assert.Equal(t, true, *mq.RequireAllQueueEntriesToPassRequiredChecks)
+
+	// HEADGREEN maps to false
+	headGreen := json.RawMessage(`{"grouping_strategy": "HEADGREEN", "merge_method": "MERGE"}`)
+	mq2, err := convertMergeQueue(&headGreen)
+	assert.NoError(t, err)
+	assert.Equal(t, false, *mq2.RequireAllQueueEntriesToPassRequiredChecks)
+
+	nilMq, err := convertMergeQueue(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, nilMq)
 }
