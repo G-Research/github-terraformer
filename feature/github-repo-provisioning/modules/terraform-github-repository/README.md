@@ -10,6 +10,7 @@ This module is a **vendored version** of the original Terraform module from [min
 
 #### Removed:
 - `push_restrictions` and `blocks_creations` as part of the main resource block.
+- `github_repository_project` resource, together with the `projects` input variable and the `projects` output. GitHub has retired the classic Projects API, so the provider resource no longer functions.
 
 #### Added:
 - New `restrict_pushes` block to handle push restrictions and branch locking.
@@ -50,7 +51,6 @@ A [Terraform] module for creating a public or private repository on [Github].
     - [Branch Protections v3 Configuration](#branch-protections-v3-configuration)
     - [Branch Protections v4 Configuration](#branch-protections-v4-configuration)
     - [Issue Labels Configuration](#issue-labels-configuration)
-    - [Projects Configuration](#projects-configuration)
     - [Webhooks Configuration](#webhooks-configuration)
     - [Secrets Configuration](#secrets-configuration)
     - [Autolink References Configuration](#autolink-references-configuration)
@@ -84,11 +84,9 @@ features like Branch Protection or Collaborator Management.
   Collaborators,
   Teams,
   Deploy Keys,
-  Projects,
   Repository Webhooks
 
 - _Features not yet implemented_:
-  Project Columns support,
   Actions,
   Repository File
 
@@ -786,32 +784,6 @@ This is due to some terraform limitation and we will update the module once terr
   Specify whether you want to force or suppress the creation of issues labels.
   Default is `true` if `has_issues` is `true` or `issue_labels` is non-empty.
 
-#### Projects Configuration
-
-- [**`projects`**](#var-projects): *(Optional `list(project)`)*<a name="var-projects"></a>
-
-  This resource allows you to create and manage projects for GitHub repository.
-
-  Default is `[]`.
-
-  Each `project` object in the list accepts the following attributes:
-
-  - [**`name`**](#attr-projects-name): *(**Required** `string`)*<a name="attr-projects-name"></a>
-
-    The name of the project.
-
-  - [**`body`**](#attr-projects-body): *(Optional `string`)*<a name="attr-projects-body"></a>
-
-    The body of the project.
-
-    Default is `""`.
-
-  - [**`id`**](#attr-projects-id): *(Optional `string`)*<a name="attr-projects-id"></a>
-
-    Specifies an ID which is used to prevent resource recreation when the order in the list of projects changes.
-
-    Default is `"name"`.
-
 #### Webhooks Configuration
 
 - [**`webhooks`**](#var-webhooks): *(Optional `list(webhook)`)*<a name="var-webhooks"></a>
@@ -991,11 +963,6 @@ The following attributes are exported by the module:
   `deploy_keys` and `deploy_keys_computed` as returned by the
   [`github_repository_deploy_key`] resource keyed by the input `id` of the
   key.
-
-- [**`projects`**](#output-projects): *(`object(project)`)*<a name="output-projects"></a>
-
-  A map of Project objects keyed by the `id` of the project as returned by
-  the [`github_repository_project`] resource
 
 - [**`issue_labels`**](#output-issue_labels): *(`object(issue_label)`)*<a name="output-issue_labels"></a>
 

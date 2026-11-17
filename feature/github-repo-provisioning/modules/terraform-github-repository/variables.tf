@@ -489,24 +489,6 @@ variable "deploy_keys_computed" {
   default = []
 }
 
-variable "projects" {
-  description = "(Optional) Create and manage projects for GitHub repository."
-  type = list(object({
-    name = string
-    body = string
-  }))
-
-  # Example:
-  # projects = [
-  #   {
-  #     name = "Testproject"
-  #     body = "This is a fancy test project for testing"
-  #   }
-  # ]
-
-  default = []
-}
-
 variable "webhooks" {
   description = "(Optional) Configuring webhooks. For details please check: https://www.terraform.io/docs/providers/github/r/repository_webhook.html"
   type        = any

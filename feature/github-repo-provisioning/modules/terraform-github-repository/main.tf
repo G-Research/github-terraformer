@@ -10,7 +10,7 @@ locals {
   private_visibility     = local.private ? "private" : "public"
   visibility             = var.visibility == null ? lookup(var.defaults, "visibility", local.private_visibility) : var.visibility
   has_issues             = var.has_issues == null ? lookup(var.defaults, "has_issues", false) : var.has_issues
-  has_projects           = var.has_projects == null ? lookup(var.defaults, "has_projects", false) : length(var.projects) > 0 ? true : var.has_projects
+  has_projects           = var.has_projects == null ? lookup(var.defaults, "has_projects", false) : var.has_projects
   has_wiki               = var.has_wiki == null ? lookup(var.defaults, "has_wiki", false) : var.has_wiki
   allow_merge_commit     = var.allow_merge_commit == null ? lookup(var.defaults, "allow_merge_commit", true) : var.allow_merge_commit
   allow_rebase_merge     = var.allow_rebase_merge == null ? lookup(var.defaults, "allow_rebase_merge", false) : var.allow_rebase_merge
@@ -540,24 +540,6 @@ resource "github_repository_deploy_key" "deploy_key" {
   title      = each.value.title
   key        = each.value.key
   read_only  = each.value.read_only
-}
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Projects
-# ---------------------------------------------------------------------------------------------------------------------
-
-locals {
-  projects = { for i in var.projects : lookup(i, "id", lower(i.name)) => merge({
-    body = null
-  }, i) }
-}
-
-resource "github_repository_project" "repository_project" {
-  for_each = local.projects
-
-  repository = github_repository.repository.name
-  name       = each.value.name
-  body       = each.value.body
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
