@@ -179,7 +179,6 @@ module "repository" {
   has_issues              = try(each.value.has_issues,              false)
   has_projects            = try(each.value.has_projects,            false)
   has_wiki                = try(each.value.has_wiki,                false)
-  has_downloads           = try(each.value.has_downloads,           false)
   has_discussions         = try(each.value.has_discussions,         null)
   is_template             = try(each.value.is_template,             false)
   default_branch          = try(each.value.default_branch,          "")

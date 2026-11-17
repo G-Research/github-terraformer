@@ -20,7 +20,6 @@ locals {
   has_discussions        = var.has_discussions
   delete_branch_on_merge = var.delete_branch_on_merge == null ? lookup(var.defaults, "delete_branch_on_merge", true) : var.delete_branch_on_merge
   is_template            = var.is_template == null ? lookup(var.defaults, "is_template", false) : var.is_template
-  has_downloads          = var.has_downloads == null ? lookup(var.defaults, "has_downloads", false) : var.has_downloads
   auto_init              = var.auto_init == null ? lookup(var.defaults, "auto_init", true) : var.auto_init
   gitignore_template     = var.gitignore_template == null ? lookup(var.defaults, "gitignore_template", "") : var.gitignore_template
   license_template       = var.license_template == null ? lookup(var.defaults, "license_template", "") : var.license_template
@@ -112,7 +111,6 @@ resource "github_repository" "repository" {
   has_discussions        = local.has_discussions
   delete_branch_on_merge = local.delete_branch_on_merge
   is_template            = local.is_template
-  has_downloads          = local.has_downloads
   auto_init              = local.auto_init
   gitignore_template     = local.gitignore_template
   license_template       = local.license_template

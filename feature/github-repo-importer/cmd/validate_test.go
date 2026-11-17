@@ -72,18 +72,22 @@ func TestValidate_DescriptionOver350Rejected(t *testing.T) {
 	assert.Contains(t, out, "/description")
 }
 
-func TestValidate_HasDownloadsTrueRejected(t *testing.T) {
+// has_downloads was removed from the schema: GitHub retired the legacy
+// repository "Downloads" feature, and the Terraform provider deprecated the
+// attribute. Any repo config that still sets it — regardless of value — is now
+// rejected as an unknown property.
+func TestValidate_HasDownloadsRejected(t *testing.T) {
 	dir := newConfigDir(t, map[string]string{
-		"bad.yaml":  "default_branch: main\nvisibility: public\nhas_downloads: true\n",
-		"good.yaml": "default_branch: main\nvisibility: public\nhas_downloads: false\n",
+		"true.yaml":  "default_branch: main\nvisibility: public\nhas_downloads: true\n",
+		"false.yaml": "default_branch: main\nvisibility: public\nhas_downloads: false\n",
 	})
 
 	out, err := runValidateCmd(t, dir, "")
 
 	require.Error(t, err)
-	assert.Contains(t, out, "/has_downloads")
-	assert.Contains(t, out, filepath.Join(dir, "repos", "bad.yaml"))
-	assert.NotContains(t, out, filepath.Join("repos", "good.yaml")+":")
+	assert.Contains(t, out, "additional properties 'has_downloads' not allowed")
+	assert.Contains(t, out, filepath.Join(dir, "repos", "true.yaml"))
+	assert.Contains(t, out, filepath.Join(dir, "repos", "false.yaml"))
 }
 
 func TestValidate_YmlExtensionIsValidated(t *testing.T) {

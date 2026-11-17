@@ -369,10 +369,6 @@
         "has_wiki": {
           "type": "boolean"
         },
-        "has_downloads": {
-          "type": "boolean",
-          "const": false
-        },
         "allow_merge_commit": {
           "type": "boolean"
         },

@@ -11,6 +11,7 @@ This module is a **vendored version** of the original Terraform module from [min
 #### Removed:
 - `push_restrictions` and `blocks_creations` as part of the main resource block.
 - `github_repository_project` resource, together with the `projects` input variable and the `projects` output. GitHub has retired the classic Projects API, so the provider resource no longer functions.
+- `has_downloads` input variable and the matching argument on the `github_repository` resource. The provider has deprecated the attribute (GitHub removed the legacy Downloads feature in 2012); it is no longer set, which silences the provider deprecation warning. Omitting it is drift-free — the attribute is optional with no default, so the provider already sent `false`.
 
 #### Added:
 - New `restrict_pushes` block to handle push restrictions and branch locking.
@@ -220,12 +221,6 @@ See [variables.tf] and [examples/] for details and use-cases.
 - [**`has_wiki`**](#var-has_wiki): *(Optional `bool`)*<a name="var-has_wiki"></a>
 
   Set to true to enable the GitHub Wiki features on the repository.
-
-  Default is `false`.
-
-- [**`has_downloads`**](#var-has_downloads): *(Optional `bool`)*<a name="var-has_downloads"></a>
-
-  Set to `true` to enable the (deprecated) downloads features on the repository.
 
   Default is `false`.
 

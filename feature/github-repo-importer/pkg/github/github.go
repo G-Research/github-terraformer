@@ -234,7 +234,6 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		HasIssues:                  repo.HasIssues,
 		HasProjects:                repo.HasProjects,
 		HasWiki:                    repo.HasWiki,
-		HasDownloads:               repo.HasDownloads,
 		AllowMergeCommit:           repo.AllowMergeCommit,
 		AllowRebaseMerge:           repo.AllowRebaseMerge,
 		AllowSquashMerge:           repo.AllowSquashMerge,

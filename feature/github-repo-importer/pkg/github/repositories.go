@@ -10,7 +10,6 @@ type Repository struct {
 	HasIssues                  *bool                 `yaml:"has_issues,omitempty"`
 	HasProjects                *bool                 `yaml:"has_projects,omitempty"`
 	HasWiki                    *bool                 `yaml:"has_wiki,omitempty"`
-	HasDownloads               *bool                 `yaml:"has_downloads,omitempty"`
 	AllowMergeCommit           *bool                 `yaml:"allow_merge_commit,omitempty"`
 	AllowRebaseMerge           *bool                 `yaml:"allow_rebase_merge,omitempty"`
 	AllowSquashMerge           *bool                 `yaml:"allow_squash_merge,omitempty"`

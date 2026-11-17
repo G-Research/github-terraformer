@@ -144,12 +144,6 @@ variable "delete_branch_on_merge" {
   default     = null
 }
 
-variable "has_downloads" {
-  description = "(Optional) Set to true to enable the (deprecated) downloads features on the repository. (Default: false)"
-  type        = bool
-  default     = null
-}
-
 variable "auto_init" {
   description = "(Optional) Wether or not to produce an initial commit in the repository. (Default: true)"
   type        = bool
