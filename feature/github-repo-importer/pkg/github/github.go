@@ -224,7 +224,7 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		return nil, err
 	}
 
-	return &Repository{
+	result := &Repository{
 		Name:                       repo.GetName(),
 		Owner:                      repo.GetOwner().GetLogin(),
 		Description:                nilIfEmpty(repo.Description),
@@ -268,7 +268,15 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 		BranchProtectionsV4:        resolveBranchProtectionsFromGraphQL(&branchProtectionRulesGraphQLQuery),
 		Environments:               resolvedEnvironments,
 		CustomProperties:           customProperties,
-	}, nil
+	}
+
+	defaults, err := LoadDefaults("./defaults.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load defaults: %w", err)
+	}
+	defaults.Apply(result)
+
+	return result, nil
 }
 
 func getRoleActors() map[int64]string {
@@ -343,7 +351,7 @@ func ImportRepos(cfg Config) ([]*Repository, error) {
 	for _, repoToImport := range reposToImport {
 		repository, err := ImportRepo(repoToImport, &cfg)
 		if err != nil {
-			return nil, fmt.Errorf("failed to import repository %s: %w", repository.Name, err)
+			return nil, fmt.Errorf("failed to import repository %s: %w", repoToImport, err)
 		}
 		importedRepos = append(importedRepos, repository)
 	}
@@ -598,11 +606,11 @@ func convertMergeQueue(mq *json.RawMessage) (*MergeQueueRule, error) {
 	}
 	requireAllGreen := api.GroupingStrategy == "ALLGREEN"
 	return &MergeQueueRule{
-		MergeMethod:                    api.MergeMethod,
-		BuildConcurrency:               api.MaxEntriesToBuild,
-		MinimumGroupSize:               api.MinEntriesToMerge,
-		MaximumGroupSize:               api.MaxEntriesToMerge,
-		WaitTimeToMeetMinimumGroupSize: api.MinEntriesToMergeWaitMinutes,
+		MergeMethod:                                api.MergeMethod,
+		BuildConcurrency:                           api.MaxEntriesToBuild,
+		MinimumGroupSize:                           api.MinEntriesToMerge,
+		MaximumGroupSize:                           api.MaxEntriesToMerge,
+		WaitTimeToMeetMinimumGroupSize:             api.MinEntriesToMergeWaitMinutes,
 		RequireAllQueueEntriesToPassRequiredChecks: &requireAllGreen,
 		StatusCheckTimeout:                         api.CheckResponseTimeoutMinutes,
 	}, nil
