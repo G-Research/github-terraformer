@@ -74,6 +74,40 @@ func (d *Defaults) Apply(repo *Repository) {
 	stripString(&repo.LicenseTemplate, d.LicenseTemplate)
 }
 
+// ScalarDefaults returns the strippable scalar keys mapped to their default
+// values. The migration (strip-defaults) compares a config's top-level values
+// against this map to decide which lines to remove, without round-tripping the
+// whole document through the struct (which would reindent nested blocks and
+// inject zero-value ids).
+func (d *Defaults) ScalarDefaults() map[string]any {
+	m := map[string]any{}
+	putBool := func(k string, v *bool) {
+		if v != nil {
+			m[k] = *v
+		}
+	}
+	putStr := func(k string, v *string) {
+		if v != nil {
+			m[k] = *v
+		}
+	}
+	putBool("allow_merge_commit", d.AllowMergeCommit)
+	putBool("allow_rebase_merge", d.AllowRebaseMerge)
+	putBool("allow_squash_merge", d.AllowSquashMerge)
+	putBool("allow_auto_merge", d.AllowAutoMerge)
+	putBool("delete_branch_on_merge", d.DeleteBranchOnMerge)
+	putBool("has_issues", d.HasIssues)
+	putBool("has_projects", d.HasProjects)
+	putBool("has_wiki", d.HasWiki)
+	putBool("is_template", d.IsTemplate)
+	putBool("archived", d.Archived)
+	putBool("auto_init", d.AutoInit)
+	putStr("homepage_url", d.HomepageURL)
+	putStr("gitignore_template", d.GitignoreTemplate)
+	putStr("license_template", d.LicenseTemplate)
+	return m
+}
+
 func stripBool(field **bool, def *bool) {
 	if *field != nil && def != nil && **field == *def {
 		*field = nil

@@ -41,6 +41,39 @@ func TestStripDefaultsRewritesFiles(t *testing.T) {
 	assert.Contains(t, s, "name: protect") // ruleset block retained
 }
 
+// strip-defaults must slim top-level scalars without touching nested blocks:
+// no injected ruleset `id: 0`, and byte-identical indentation for everything it
+// keeps. A full-struct round-trip would reindent and inject zero-value ids.
+func TestStripDefaultsPreservesNestedBlocksVerbatim(t *testing.T) {
+	dir := t.TempDir()
+	reposDir := filepath.Join(dir, "repos")
+	require.NoError(t, os.MkdirAll(reposDir, 0o755))
+
+	repoFile := filepath.Join(reposDir, "example.yaml")
+	content := "description: A repo\n" +
+		"visibility: private\n" +
+		"default_branch: main\n" +
+		"has_issues: false\n" + // equals default -> stripped
+		"rulesets:\n" +
+		"  - enforcement: active\n" +
+		"    name: Protect\n" +
+		"    rules:\n" +
+		"      deletion: true\n" +
+		"    target: branch\n"
+	require.NoError(t, os.WriteFile(repoFile, []byte(content), 0o644))
+
+	defaultsPath := filepath.Join(dir, "defaults.yaml")
+	require.NoError(t, os.WriteFile(defaultsPath, []byte("has_issues: false\n"), 0o644))
+
+	require.NoError(t, runStripDefaults(reposDir, defaultsPath))
+
+	s := readFile(t, repoFile)
+	assert.NotContains(t, s, "has_issues")          // stripped
+	assert.NotContains(t, s, "id: 0")               // no zero-value id injected
+	assert.Contains(t, s, "  - enforcement: active\n") // 2-space list indent preserved
+	assert.Contains(t, s, "      deletion: true\n")    // deep nesting preserved byte-for-byte
+}
+
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
