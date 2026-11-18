@@ -30,3 +30,70 @@ func TestLoadDefaultsMissingFileErrors(t *testing.T) {
 	_, err := LoadDefaults(filepath.Join(t.TempDir(), "nope.yaml"))
 	assert.Error(t, err)
 }
+
+func ptrTo[T any](v T) *T { return &v }
+
+func TestApplyStripsDefaults(t *testing.T) {
+	d := &Defaults{HasIssues: ptrTo(false), AllowMergeCommit: ptrTo(true), HomepageURL: ptrTo("")}
+	repo := &Repository{HasIssues: ptrTo(false), AllowMergeCommit: ptrTo(true), HomepageURL: ptrTo("")}
+
+	d.Apply(repo)
+
+	assert.Nil(t, repo.HasIssues)
+	assert.Nil(t, repo.AllowMergeCommit)
+	assert.Nil(t, repo.HomepageURL)
+}
+
+func TestApplyKeepsNonDefaults(t *testing.T) {
+	d := &Defaults{HasIssues: ptrTo(false), HomepageURL: ptrTo("")}
+	repo := &Repository{HasIssues: ptrTo(true), HomepageURL: ptrTo("https://example.com")}
+
+	d.Apply(repo)
+
+	require.NotNil(t, repo.HasIssues)
+	assert.Equal(t, true, *repo.HasIssues)
+	require.NotNil(t, repo.HomepageURL)
+	assert.Equal(t, "https://example.com", *repo.HomepageURL)
+}
+
+func TestApplyKeepsAlwaysPresent(t *testing.T) {
+	d := &Defaults{}
+	repo := &Repository{Description: ptrTo(""), Visibility: "private", DefaultBranch: "main"}
+
+	d.Apply(repo)
+
+	require.NotNil(t, repo.Description)
+	assert.Equal(t, "", *repo.Description)
+	assert.Equal(t, "private", repo.Visibility)
+	assert.Equal(t, "main", repo.DefaultBranch)
+}
+
+func TestApplyLeavesNullDefaultFields(t *testing.T) {
+	d := &Defaults{}
+	repo := &Repository{
+		VulnerabilityAlertsEnabled: ptrTo(false),
+		SquashMergeCommitTitle:     ptrTo("PR_TITLE"),
+		AllowUpdateBranch:          ptrTo(false),
+	}
+
+	d.Apply(repo)
+
+	assert.NotNil(t, repo.VulnerabilityAlertsEnabled)
+	assert.NotNil(t, repo.SquashMergeCommitTitle)
+	assert.NotNil(t, repo.AllowUpdateBranch)
+}
+
+func TestApplyIgnoresNestedBlocks(t *testing.T) {
+	d := &Defaults{HasIssues: ptrTo(false)}
+	repo := &Repository{
+		HasIssues:         ptrTo(false),
+		Rulesets:          []Ruleset{{Name: "protect"}},
+		PushCollaborators: []string{"alice"},
+	}
+
+	d.Apply(repo)
+
+	assert.Nil(t, repo.HasIssues)
+	assert.Len(t, repo.Rulesets, 1)
+	assert.Equal(t, []string{"alice"}, repo.PushCollaborators)
+}

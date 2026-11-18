@@ -51,3 +51,37 @@ func LoadDefaults(path string) (*Defaults, error) {
 
 	return &defaults, nil
 }
+
+// Apply nils out any scalar on repo whose value equals the default, so the
+// omitempty YAML tags drop it on marshal. The always-present fields
+// (description, visibility, default_branch), the null-default fields, and all
+// nested/list blocks are left untouched. auto_init has no counterpart on
+// Repository (it is a write-only creation parameter never read from GitHub), so
+// it is not stripped here even though it is part of Defaults.
+func (d *Defaults) Apply(repo *Repository) {
+	stripBool(&repo.AllowMergeCommit, d.AllowMergeCommit)
+	stripBool(&repo.AllowRebaseMerge, d.AllowRebaseMerge)
+	stripBool(&repo.AllowSquashMerge, d.AllowSquashMerge)
+	stripBool(&repo.AllowAutoMerge, d.AllowAutoMerge)
+	stripBool(&repo.DeleteBranchOnMerge, d.DeleteBranchOnMerge)
+	stripBool(&repo.HasIssues, d.HasIssues)
+	stripBool(&repo.HasProjects, d.HasProjects)
+	stripBool(&repo.HasWiki, d.HasWiki)
+	stripBool(&repo.IsTemplate, d.IsTemplate)
+	stripBool(&repo.Archived, d.Archived)
+	stripString(&repo.HomepageURL, d.HomepageURL)
+	stripString(&repo.GitignoreTemplate, d.GitignoreTemplate)
+	stripString(&repo.LicenseTemplate, d.LicenseTemplate)
+}
+
+func stripBool(field **bool, def *bool) {
+	if *field != nil && def != nil && **field == *def {
+		*field = nil
+	}
+}
+
+func stripString(field **string, def *string) {
+	if *field != nil && def != nil && **field == *def {
+		*field = nil
+	}
+}
