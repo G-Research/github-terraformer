@@ -351,7 +351,7 @@ func ImportRepos(cfg Config) ([]*Repository, error) {
 	for _, repoToImport := range reposToImport {
 		repository, err := ImportRepo(repoToImport, &cfg)
 		if err != nil {
-			return nil, fmt.Errorf("failed to import repository %s: %w", repository.Name, err)
+			return nil, fmt.Errorf("failed to import repository %s: %w", repoToImport, err)
 		}
 		importedRepos = append(importedRepos, repository)
 	}

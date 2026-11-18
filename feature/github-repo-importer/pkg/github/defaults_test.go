@@ -31,6 +31,14 @@ func TestLoadDefaultsMissingFileErrors(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// ImportRepos must surface a clean error when a selected repo fails to import,
+// not panic dereferencing the nil *Repository the failing ImportRepo returns.
+func TestImportReposErrorDoesNotPanicOnNilRepo(t *testing.T) {
+	_, err := ImportRepos(Config{SelectedRepos: []string{"invalid-format"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid-format")
+}
+
 func ptrTo[T any](v T) *T { return &v }
 
 func TestApplyStripsDefaults(t *testing.T) {
