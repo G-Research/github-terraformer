@@ -158,6 +158,10 @@ import {
 }
 
 
+locals {
+  defaults = yamldecode(file("./defaults.yaml"))
+}
+
 module "repository" {
   source                  = "./modules/terraform-github-repository"
   for_each                = local.all_repos
@@ -167,22 +171,22 @@ module "repository" {
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   name                    = each.key
-  allow_merge_commit      = try(each.value.allow_merge_commit,      true)
-  allow_rebase_merge      = try(each.value.allow_rebase_merge,      false)
-  allow_squash_merge      = try(each.value.allow_squash_merge,      false)
-  allow_auto_merge        = try(each.value.allow_auto_merge,        false)
+  allow_merge_commit      = try(each.value.allow_merge_commit, local.defaults.allow_merge_commit)
+  allow_rebase_merge      = try(each.value.allow_rebase_merge, local.defaults.allow_rebase_merge)
+  allow_squash_merge      = try(each.value.allow_squash_merge, local.defaults.allow_squash_merge)
+  allow_auto_merge        = try(each.value.allow_auto_merge, local.defaults.allow_auto_merge)
   allow_update_branch     = try(each.value.allow_update_branch,     null)
-  description             = try(each.value.description,             "")
-  delete_branch_on_merge  = try(each.value.delete_branch_on_merge,  true)
-  homepage_url            = try(each.value.homepage_url,            "")
-  visibility              = try(each.value.visibility,              "private")
-  has_issues              = try(each.value.has_issues,              false)
-  has_projects            = try(each.value.has_projects,            false)
-  has_wiki                = try(each.value.has_wiki,                false)
+  description             = try(each.value.description, local.defaults.description)
+  delete_branch_on_merge  = try(each.value.delete_branch_on_merge, local.defaults.delete_branch_on_merge)
+  homepage_url            = try(each.value.homepage_url, local.defaults.homepage_url)
+  visibility              = try(each.value.visibility, local.defaults.visibility)
+  has_issues              = try(each.value.has_issues, local.defaults.has_issues)
+  has_projects            = try(each.value.has_projects, local.defaults.has_projects)
+  has_wiki                = try(each.value.has_wiki, local.defaults.has_wiki)
   has_discussions         = try(each.value.has_discussions,         null)
-  is_template             = try(each.value.is_template,             false)
-  default_branch          = try(each.value.default_branch,          "")
-  archived                = try(each.value.archived,                false)
+  is_template             = try(each.value.is_template, local.defaults.is_template)
+  default_branch          = try(each.value.default_branch, local.defaults.default_branch)
+  archived                = try(each.value.archived, local.defaults.archived)
   topics                  = try(each.value.topics,                  [])
   archive_on_destroy      = try(each.value.archive_on_destroy,      null)
   pages                   = try(contains(keys(each.value), "pages") && try(each.value.pages != null, false) ? {
@@ -204,9 +208,9 @@ module "repository" {
   # Repository Creation Configuration
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  auto_init           = try(each.value.auto_init,                           true)
-  gitignore_template  = try(each.value.gitignore_template,                  "")
-  license_template    = try(each.value.license_template,                    "")
+  auto_init           = try(each.value.auto_init, local.defaults.auto_init)
+  gitignore_template  = try(each.value.gitignore_template, local.defaults.gitignore_template)
+  license_template    = try(each.value.license_template, local.defaults.license_template)
   template            = try(contains(keys(each.value), "template") && try(each.value.template != null, false) ? {
                           owner       = try(each.value.template.owner,      "")
                           repository  = try(each.value.template.repository, "")

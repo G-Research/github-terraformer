@@ -1,0 +1,26 @@
+# Default values for repository scalar properties, mirroring the literal
+# defaults historically hard-coded in the root module. The importer strips any
+# repo YAML value equal to these, and Terraform fills omitted values back in from
+# this same file — so slimmer YAMLs produce zero infrastructure changes.
+#
+# Fields whose Terraform default is null (allow_update_branch, has_discussions,
+# archive_on_destroy, vulnerability_alerts_enabled, the squash/merge-commit
+# titles & messages, web_commit_signoff_required) are intentionally absent: they
+# are not stripped and keep their per-repo value.
+allow_merge_commit: true
+allow_rebase_merge: false
+allow_squash_merge: false
+allow_auto_merge: false
+delete_branch_on_merge: true
+has_issues: false
+has_projects: false
+has_wiki: false
+is_template: false
+archived: false
+auto_init: true
+homepage_url: ""
+gitignore_template: ""
+license_template: ""
+description: ""
+visibility: private
+default_branch: ""
