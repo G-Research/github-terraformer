@@ -175,7 +175,7 @@ module "repository" {
   allow_rebase_merge      = try(each.value.allow_rebase_merge, local.defaults.allow_rebase_merge)
   allow_squash_merge      = try(each.value.allow_squash_merge, local.defaults.allow_squash_merge)
   allow_auto_merge        = try(each.value.allow_auto_merge, local.defaults.allow_auto_merge)
-  allow_update_branch     = try(each.value.allow_update_branch,     null)
+  allow_update_branch     = try(each.value.allow_update_branch, local.defaults.allow_update_branch)
   description             = try(each.value.description, local.defaults.description)
   delete_branch_on_merge  = try(each.value.delete_branch_on_merge, local.defaults.delete_branch_on_merge)
   homepage_url            = try(each.value.homepage_url, local.defaults.homepage_url)
@@ -183,7 +183,7 @@ module "repository" {
   has_issues              = try(each.value.has_issues, local.defaults.has_issues)
   has_projects            = try(each.value.has_projects, local.defaults.has_projects)
   has_wiki                = try(each.value.has_wiki, local.defaults.has_wiki)
-  has_discussions         = try(each.value.has_discussions,         null)
+  has_discussions         = try(each.value.has_discussions, local.defaults.has_discussions)
   is_template             = try(each.value.is_template, local.defaults.is_template)
   default_branch          = try(each.value.default_branch, local.defaults.default_branch)
   archived                = try(each.value.archived, local.defaults.archived)
@@ -197,11 +197,11 @@ module "repository" {
                             } : null)
   vulnerability_alerts    = try(each.value.vulnerability_alerts_enabled,  null)
 
-  squash_merge_commit_title   = try(each.value.squash_merge_commit_title,   null)
-  squash_merge_commit_message = try(each.value.squash_merge_commit_message, null)
-  merge_commit_title          = try(each.value.merge_commit_title,          null)
-  merge_commit_message        = try(each.value.merge_commit_message,        null)
-  web_commit_signoff_required = try(each.value.web_commit_signoff_required, null)
+  squash_merge_commit_title   = try(each.value.squash_merge_commit_title, local.defaults.squash_merge_commit_title)
+  squash_merge_commit_message = try(each.value.squash_merge_commit_message, local.defaults.squash_merge_commit_message)
+  merge_commit_title          = try(each.value.merge_commit_title, local.defaults.merge_commit_title)
+  merge_commit_message        = try(each.value.merge_commit_message, local.defaults.merge_commit_message)
+  web_commit_signoff_required = try(each.value.web_commit_signoff_required, local.defaults.web_commit_signoff_required)
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Extended Resource Configuration

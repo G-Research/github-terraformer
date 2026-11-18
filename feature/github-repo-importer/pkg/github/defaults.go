@@ -10,9 +10,9 @@ import (
 // Defaults holds the default value of every scalar repository property that the
 // importer is allowed to strip. It mirrors the literal defaults set in the
 // Terraform root module, loaded from the central defaults.yaml so the importer
-// and Terraform resolve omitted values against the same source. Fields whose
-// Terraform default is null (e.g. vulnerability_alerts, the merge-commit titles)
-// are intentionally absent: those are never stripped.
+// and Terraform resolve omitted values against the same source. vulnerability_alerts
+// (visibility-dependent) and archive_on_destroy (a Terraform-only attribute never
+// imported) are intentionally absent: those are never stripped.
 type Defaults struct {
 	AllowMergeCommit    *bool   `yaml:"allow_merge_commit"`
 	AllowRebaseMerge    *bool   `yaml:"allow_rebase_merge"`
@@ -28,6 +28,14 @@ type Defaults struct {
 	HomepageURL         *string `yaml:"homepage_url"`
 	GitignoreTemplate   *string `yaml:"gitignore_template"`
 	LicenseTemplate     *string `yaml:"license_template"`
+
+	AllowUpdateBranch        *bool   `yaml:"allow_update_branch"`
+	HasDiscussions           *bool   `yaml:"has_discussions"`
+	WebCommitSignoffRequired *bool   `yaml:"web_commit_signoff_required"`
+	SquashMergeCommitTitle   *string `yaml:"squash_merge_commit_title"`
+	SquashMergeCommitMessage *string `yaml:"squash_merge_commit_message"`
+	MergeCommitTitle         *string `yaml:"merge_commit_title"`
+	MergeCommitMessage       *string `yaml:"merge_commit_message"`
 }
 
 // LoadDefaults opens and decodes the central defaults file. The file is
@@ -72,6 +80,13 @@ func (d *Defaults) Apply(repo *Repository) {
 	stripString(&repo.HomepageURL, d.HomepageURL)
 	stripString(&repo.GitignoreTemplate, d.GitignoreTemplate)
 	stripString(&repo.LicenseTemplate, d.LicenseTemplate)
+	stripBool(&repo.AllowUpdateBranch, d.AllowUpdateBranch)
+	stripBool(&repo.HasDiscussions, d.HasDiscussions)
+	stripBool(&repo.WebCommitSignoffRequired, d.WebCommitSignoffRequired)
+	stripString(&repo.SquashMergeCommitTitle, d.SquashMergeCommitTitle)
+	stripString(&repo.SquashMergeCommitMessage, d.SquashMergeCommitMessage)
+	stripString(&repo.MergeCommitTitle, d.MergeCommitTitle)
+	stripString(&repo.MergeCommitMessage, d.MergeCommitMessage)
 }
 
 func stripBool(field **bool, def *bool) {

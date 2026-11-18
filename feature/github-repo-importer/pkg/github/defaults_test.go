@@ -76,19 +76,56 @@ func TestApplyKeepsAlwaysPresent(t *testing.T) {
 	assert.Equal(t, "main", repo.DefaultBranch)
 }
 
-func TestApplyLeavesNullDefaultFields(t *testing.T) {
-	d := &Defaults{}
+func TestApplyStripsSimpleScalars(t *testing.T) {
+	d := &Defaults{
+		AllowUpdateBranch:        ptrTo(false),
+		HasDiscussions:           ptrTo(false),
+		WebCommitSignoffRequired: ptrTo(false),
+		SquashMergeCommitTitle:   ptrTo("COMMIT_OR_PR_TITLE"),
+		SquashMergeCommitMessage: ptrTo("COMMIT_MESSAGES"),
+		MergeCommitTitle:         ptrTo("MERGE_MESSAGE"),
+		MergeCommitMessage:       ptrTo("PR_TITLE"),
+	}
 	repo := &Repository{
-		VulnerabilityAlertsEnabled: ptrTo(false),
-		SquashMergeCommitTitle:     ptrTo("PR_TITLE"),
-		AllowUpdateBranch:          ptrTo(false),
+		AllowUpdateBranch:        ptrTo(false),
+		HasDiscussions:           ptrTo(false),
+		WebCommitSignoffRequired: ptrTo(false),
+		SquashMergeCommitTitle:   ptrTo("COMMIT_OR_PR_TITLE"),
+		SquashMergeCommitMessage: ptrTo("COMMIT_MESSAGES"),
+		MergeCommitTitle:         ptrTo("MERGE_MESSAGE"),
+		MergeCommitMessage:       ptrTo("PR_TITLE"),
 	}
 
 	d.Apply(repo)
 
+	assert.Nil(t, repo.AllowUpdateBranch)
+	assert.Nil(t, repo.HasDiscussions)
+	assert.Nil(t, repo.WebCommitSignoffRequired)
+	assert.Nil(t, repo.SquashMergeCommitTitle)
+	assert.Nil(t, repo.SquashMergeCommitMessage)
+	assert.Nil(t, repo.MergeCommitTitle)
+	assert.Nil(t, repo.MergeCommitMessage)
+}
+
+func TestApplyKeepsNonDefaultMergeCommit(t *testing.T) {
+	d := &Defaults{SquashMergeCommitTitle: ptrTo("COMMIT_OR_PR_TITLE")}
+	repo := &Repository{SquashMergeCommitTitle: ptrTo("PR_TITLE")}
+
+	d.Apply(repo)
+
+	require.NotNil(t, repo.SquashMergeCommitTitle)
+	assert.Equal(t, "PR_TITLE", *repo.SquashMergeCommitTitle)
+}
+
+func TestApplyLeavesVulnerabilityAlerts(t *testing.T) {
+	// vulnerability_alerts is visibility-dependent, not a flat default, so it is
+	// not part of Defaults and must never be stripped.
+	d := &Defaults{}
+	repo := &Repository{VulnerabilityAlertsEnabled: ptrTo(false)}
+
+	d.Apply(repo)
+
 	assert.NotNil(t, repo.VulnerabilityAlertsEnabled)
-	assert.NotNil(t, repo.SquashMergeCommitTitle)
-	assert.NotNil(t, repo.AllowUpdateBranch)
 }
 
 func TestApplyIgnoresNestedBlocks(t *testing.T) {
