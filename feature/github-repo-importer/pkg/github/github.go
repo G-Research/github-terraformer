@@ -134,6 +134,9 @@ func ImportRepo(repoName string, cfg *Config) (*Repository, error) {
 					if env.Name == nil {
 						continue
 					}
+					if isGitHubManagedEnvironment(*env.Name) {
+						continue
+					}
 					fullEnv, _, err := v3client.Repositories.GetEnvironment(context.Background(), repoNameSplit[0], repoNameSplit[1], *env.Name)
 					if err != nil {
 						return nil, fmt.Errorf("failed to get environment %q for %q: %w", *env.Name, repoName, err)
