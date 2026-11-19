@@ -1,5 +1,17 @@
 package github
 
+// githubManagedEnvironments are environments GitHub creates and owns rather than
+// the user — currently the Copilot coding agent's "copilot" runtime environment.
+// The importer skips them so they are not written to config and therefore not
+// reported as drift on every run.
+var githubManagedEnvironments = map[string]bool{
+	"copilot": true,
+}
+
+func isGitHubManagedEnvironment(name string) bool {
+	return githubManagedEnvironments[name]
+}
+
 type Environment struct {
 	Environment       string                `yaml:"environment" jsonschema:"required"`
 	WaitTimer         *int                  `yaml:"wait_timer,omitempty" jsonschema:"minimum=0,maximum=43200"`

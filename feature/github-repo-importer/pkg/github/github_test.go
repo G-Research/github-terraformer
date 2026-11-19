@@ -302,6 +302,40 @@ func TestResolvePages(t *testing.T) {
 	}
 }
 
+func TestPermissionGroupBuilder(t *testing.T) {
+	var b permissionGroupBuilder
+
+	// Added out of order, with duplicate roles, and using both "push" and its
+	// alias "write" (the latter is what pending invitations report).
+	b.add("zoe", PermissionPush)
+	b.add("amy", PermissionWrite)
+	b.add("mia", PermissionPush)
+	b.add("bob", PermissionRead)
+	b.add("carol", PermissionAdmin)
+	b.add("dave", PermissionTriage)
+	b.add("erin", PermissionMaintain)
+
+	groups := b.build()
+
+	// push + write collapse into one group, sorted deterministically.
+	assert.Equal(t, []string{"amy", "mia", "zoe"}, groups.Push)
+	assert.Equal(t, []string{"bob"}, groups.Pull)
+	assert.Equal(t, []string{"carol"}, groups.Admin)
+	assert.Equal(t, []string{"dave"}, groups.Triage)
+	assert.Equal(t, []string{"erin"}, groups.Maintain)
+}
+
+func TestPermissionGroupBuilderEmpty(t *testing.T) {
+	var b permissionGroupBuilder
+	groups := b.build()
+
+	assert.Nil(t, groups.Push)
+	assert.Nil(t, groups.Pull)
+	assert.Nil(t, groups.Admin)
+	assert.Nil(t, groups.Triage)
+	assert.Nil(t, groups.Maintain)
+}
+
 func TestConvertMergeQueue(t *testing.T) {
 	raw := json.RawMessage(`{
 		"check_response_timeout_minutes": 60,
