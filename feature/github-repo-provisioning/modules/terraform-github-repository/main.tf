@@ -28,7 +28,8 @@ locals {
   topics                 = concat(local.standard_topics, var.extra_topics)
   template               = var.template == null ? [] : [var.template]
   fork_parts             = var.fork_of == null ? null : split("/", var.fork_of)
-  fork                   = var.fork_of != null
+  # The provider models "fork" as a string ("true"/"false"), not a bool.
+  fork                   = var.fork_of != null ? "true" : "false"
   source_owner           = try(local.fork_parts[0], null)
   source_repo            = try(local.fork_parts[1], null)
   issue_labels_create    = var.issue_labels_create == null ? lookup(var.defaults, "issue_labels_create", local.issue_labels_create_computed) : var.issue_labels_create
@@ -154,6 +155,14 @@ resource "github_repository" "repository" {
   }
 
   lifecycle {
+    # The provider create path is template -> fork -> normal, so a repo that sets
+    # both would silently create from the template and ignore fork_of. Reject the
+    # combination explicitly instead.
+    precondition {
+      condition     = !(var.fork_of != null && var.template != null)
+      error_message = "fork_of and template are mutually exclusive; set only one."
+    }
+
     ignore_changes = [
       auto_init,
       license_template,

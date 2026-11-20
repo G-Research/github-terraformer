@@ -17,6 +17,7 @@ This module is a **vendored version** of the original Terraform module from [min
 - New `restrict_pushes` block to handle push restrictions and branch locking.
 - `force_push_bypassers`, `lock_branch`, and `require_last_push_approval` fields.
 - `has_discussions`, `pages.build_type`, `allow_update_branch`, `squash_merge_commit_title`, `squash_merge_commit_message`, `merge_commit_title`, `web_commit_signoff_required`, `merge_commit_message` fields
+- `fork_of` input (`"owner/repo"`) that creates the repository as a fork of an upstream repository. The module derives the provider's `fork`, `source_owner`, and `source_repo` from it and adds them to `ignore_changes` so existing forks in state are not recreated. Mutually exclusive with `template` (enforced by a precondition).
 
 #### Modified:
 - Adjusted the handling of `required_pull_request_reviews` and `required_status_checks`.
@@ -311,6 +312,17 @@ will not show a diff in plan or apply phase.
   - [**`repository`**](#attr-template-repository): *(**Required** `string`)*<a name="attr-template-repository"></a>
 
     The name of the template repository.
+
+- [**`fork_of`**](#var-fork_of): *(Optional `string`)*<a name="var-fork_of"></a>
+
+  Create this repository as a fork of an existing repository, given as
+  `"owner/repo"`. The module derives the provider's `fork`, `source_owner`, and
+  `source_repo` from this single value, and adds those three attributes to
+  `ignore_changes` so a repository already forked in state is not recreated.
+
+  `fork_of` and `template` are mutually exclusive — setting both fails the plan.
+
+  Default is `null`.
 
 #### Teams Configuration
 

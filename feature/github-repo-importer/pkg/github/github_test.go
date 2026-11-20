@@ -302,6 +302,53 @@ func TestResolvePages(t *testing.T) {
 	}
 }
 
+func TestResolveForkOf(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *github.Repository
+		expected *string
+	}{
+		{
+			name: "fork with parent returns parent full name",
+			input: &github.Repository{
+				Fork:   github.Bool(true),
+				Parent: &github.Repository{FullName: github.String("octocat/hello-world")},
+			},
+			expected: github.String("octocat/hello-world"),
+		},
+		{
+			name: "non-fork returns nil even when a parent is present",
+			input: &github.Repository{
+				Fork:   github.Bool(false),
+				Parent: &github.Repository{FullName: github.String("octocat/hello-world")},
+			},
+			expected: nil,
+		},
+		{
+			name: "fork without parent returns nil",
+			input: &github.Repository{
+				Fork: github.Bool(true),
+			},
+			expected: nil,
+		},
+		{
+			name: "fork with empty parent full name returns nil",
+			input: &github.Repository{
+				Fork:   github.Bool(true),
+				Parent: &github.Repository{FullName: github.String("")},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolveForkOf(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestPermissionGroupBuilder(t *testing.T) {
 	var b permissionGroupBuilder
 
